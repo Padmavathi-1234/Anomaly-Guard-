@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anomalyguard"
+version = "1.0.0"
+description = "AnomalyGuard - Explainable AI for Cybersecurity Incident Response"
+authors = [
+    {name = "AnomalyGuard Team", email = "team@anomalyguard.dev"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "openenv-core>=0.1.0",
+    "openai>=1.10.0",
+    "python-multipart>=0.0.6",
+    "httpx>=0.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/anomalyguard/anomalyguard"
+Repository = "https://github.com/anomalyguard/anomalyguard"
+Documentation = "https://github.com/anomalyguard/anomalyguard/blob/main/README.md"
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-data]
+app = ["*.yaml", "*.yml"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"

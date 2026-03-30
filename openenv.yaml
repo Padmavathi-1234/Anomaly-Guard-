@@ -1,0 +1,50 @@
+name: anomalyguard
+description: >
+  Explainable AI for Cybersecurity — RL environment requiring agents to
+  JUSTIFY every action with evidence-based reasoning, risk assessment,
+  and alternative analysis. Extends openenv.env.env.Env.
+version: 1.0.0
+
+tasks:
+  - id: 1
+    name: Alert Triage
+    description: Triage 6-10 SIEM alerts with evidence-based justifications
+    difficulty: easy
+    max_steps: 15
+
+  - id: 2
+    name: Incident Containment
+    description: Contain active breach across 10-15 hosts with justified decisions
+    difficulty: medium
+    max_steps: 20
+
+  - id: 3
+    name: Full Incident Response
+    description: Complete IR lifecycle — detect, contain, eradicate, recover
+    difficulty: hard
+    max_steps: 30
+
+endpoints:
+  health: GET /health
+  tasks: GET /tasks
+  reset: POST /reset?task_id={task_id}&seed={seed}
+  step: POST /step
+  state: GET /state
+  grader: POST /grader?task_id={task_id}
+  baseline: POST /baseline?task_id={task_id}&seed={seed}
+
+docker:
+  build: docker build -t anomalyguard .
+  run: docker run -p 7860:7860 anomalyguard
+
+environment:
+  class: app.environment.AnomalyGuardEnvironment
+  base_class: openenv.env.env.Env
+
+innovation:
+  - Mandatory ActionJustification with every action
+  - Reward = action_correctness * 0.35 + explanation_quality * 0.65
+  - Evidence validation against actual observations
+  - Multi-dimensional grading (action + explanation + evidence + risk)
+  - MITRE ATT&CK-based realistic scenarios
+  - Deterministic reproducibility via seeded random

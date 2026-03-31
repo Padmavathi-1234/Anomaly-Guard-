@@ -34,6 +34,8 @@ TASK_NAMES   = {
 client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
 
 
+# ── Environment HTTP Client ───────────────────────────────────────
+
 class EnvClient:
     """HTTP client for AnomalyGuard environment."""
 
@@ -49,16 +51,31 @@ class EnvClient:
         except Exception:
             return False
 
-    def reset(self, task_id: int, seed: int = 42) -> dict:
+    def reset(self, task_id: int, seed: int = 42) -> tuple[dict, dict]:
+        """
+        Returns (observation_dict, info_dict).
+        /reset returns {"observation": {...}, "info": {...}}
+        """
         r = self.session.post(
             f"{self.base}/reset",
             params={"task_id": task_id, "seed": seed},
             timeout=30,
         )
         r.raise_for_status()
-        return r.json()
+        data = r.json()
+
+        # Handle both old format (direct obs) and new format (wrapped)
+        if "observation" in data and "info" in data:
+            return data["observation"], data["info"]
+        else:
+            # Fallback: treat entire response as observation
+            return data, {}
 
     def step(self, action: dict) -> dict:
+        """
+        Returns full step response dict.
+        Contains: observation, reward (float), done, truncated, info
+        """
         r = self.session.post(
             f"{self.base}/step",
             json=action,
@@ -76,6 +93,24 @@ class EnvClient:
         r.raise_for_status()
         return r.json()
 
+    def get_observability(self) -> dict:
+        """Check how many hosts have been queried."""
+        try:
+            r = self.session.get(f"{self.base}/observability/status", timeout=10)
+            return r.json()
+        except Exception:
+            return {}
+
+    def get_metrics(self) -> dict:
+        """Get detailed episode metrics."""
+        try:
+            r = self.session.get(f"{self.base}/metrics/detailed", timeout=10)
+            return r.json()
+        except Exception:
+            return {}
+
+
+# ── System Prompt ─────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are an expert cybersecurity SOC analyst operating inside AnomalyGuard,
 an RL environment for cybersecurity incident response.
@@ -117,83 +152,130 @@ ACTION SCHEMA:
 }
 
 AVAILABLE ACTION TYPES:
+- query_host: INVESTIGATE a host to reveal its compromise status (target=host_id)
+  USE THIS FIRST before isolating — you cannot see c2_active/persistence until queried
 - triage_alert: parameters={"classification": "true_positive"|"false_positive"}
-- isolate_host: no extra parameters
-- block_ip: no extra parameters
-- disable_account: no extra parameters
-- patch_vulnerability: no extra parameters (target=CVE-ID)
-- remove_persistence: no extra parameters (target=persistence_type)
-- rotate_credentials: no extra parameters (target=account_name)
-- restore_host: no extra parameters (host must be isolated first)
-- collect_forensics: no extra parameters
-- escalate_incident: target="tier2"
+- isolate_host: Isolate a compromised host (target=host_id, must query first)
+- block_ip: Block a malicious IP (target=ip_address)
+- disable_account: Disable a compromised account (target=account_name)
+- patch_vulnerability: Patch a CVE (target=CVE-ID)
+- remove_persistence: Remove malware persistence (target=persistence_type)
+- rotate_credentials: Rotate compromised credentials (target=account_name)
+- restore_host: Restore isolated host (target=host_id, must isolate+eradicate first)
+- collect_forensics: Gather evidence from host (target=host_id)
+- escalate_incident: Escalate to human analyst (target="tier2")
+- monitor: Passive observation (use sparingly — low reward)
+
+PARTIAL OBSERVABILITY — IMPORTANT:
+Hosts start with hidden details. You CANNOT see c2_active, persistence,
+vulnerabilities, or accounts until you use query_host.
+Strategy: query_host first → see compromise status → then act.
+Hosts show is_queried=false until investigated.
 
 INCIDENT PHASES:
 - detection: Triage alerts — identify true vs false positives
-- containment: Isolate threats — stop lateral movement
+- containment: Isolate threats — stop lateral movement (query hosts first)
 - eradication: Remove malware persistence, patch CVEs
 - recovery: Restore systems, rotate credentials
 
-SCORING: Your score = action_correctness * 35% + explanation_quality * 65%
-Your EXPLANATION QUALITY is more important than the action itself.
-Cite specific IDs from the observation. Be specific and technical."""
+SCORING: action_correctness * 60% + explanation_quality * 40%
+Both matter. Cite specific IDs from the observation. Be technical and precise."""
 
+
+# ── Prompt Builder ────────────────────────────────────────────────
 
 def build_user_prompt(obs: dict) -> str:
+    """Build context-aware prompt from current observation."""
+
+    # Alerts - show all relevant fields
     alerts = []
-    for a in obs.get("alerts", [])[:8]:
+    for a in obs.get("alerts", [])[:10]:
         alerts.append({
-            "id":       a["alert_id"],
-            "severity": a["severity"],
-            "type":     a["alert_type"],
-            "host":     a["source_host"],
-            "src_ip":   a["source_ip"],
-            "desc":     a["description"][:200],
-            "iocs":     a.get("ioc_matches", []),
-            "mitre":    a["mitre_technique"]["technique_id"] if a.get("mitre_technique") else None,
-            "triaged":  a.get("agent_classification"),
+            "id":        a["alert_id"],
+            "severity":  a["severity"],
+            "type":      a["alert_type"],
+            "host":      a["source_host"],
+            "src_ip":    a["source_ip"],
+            "desc":      a["description"][:200],
+            "iocs":      a.get("ioc_matches", []),
+            "mitre":     a["mitre_technique"]["technique_id"] if a.get("mitre_technique") else None,
+            "confidence": a.get("confidence", 0),
+            "triaged":   a.get("agent_classification"),  # null = not yet triaged
         })
 
+    # Hosts - show is_queried status clearly
     hosts = []
-    for h in obs.get("hosts", [])[:10]:
-        hosts.append({
-            "id":          h["host_id"],
-            "hostname":    h["hostname"],
-            "ip":          h["ip_address"],
-            "status":      h["status"],
-            "c2_active":   h["c2_active"],
-            "persistence": h["persistence"],
-            "vulns":       h.get("vulnerabilities", [])[:3],
-            "accounts":    h.get("accounts", [])[:3],
-        })
+    for h in obs.get("hosts", [])[:12]:
+        is_queried = h.get("is_queried", False)
+        host_info = {
+            "id":         h["host_id"],
+            "hostname":   h["hostname"],
+            "ip":         h["ip_address"],
+            "role":       h["role"],
+            "criticality": h["criticality"],
+            "services":   h.get("services", []),
+            "is_queried": is_queried,
+        }
+        if is_queried:
+            # Full details revealed after query_host
+            host_info.update({
+                "status":      h.get("status"),
+                "c2_active":   h.get("c2_active"),
+                "persistence": h.get("persistence", []),
+                "vulns":       h.get("vulnerabilities", [])[:3],
+                "accounts":    h.get("accounts", [])[:3],
+            })
+        else:
+            host_info["note"] = "USE query_host TO REVEAL COMPROMISE STATUS"
 
-    intel = obs.get("threat_intel", {})
+        hosts.append(host_info)
+
+    intel = obs.get("threat_intel") or {}
+    score_bd = obs.get("score_breakdown") or {}
+
+    queried_count = sum(1 for h in obs.get("hosts", []) if h.get("is_queried"))
+    total_hosts = len(obs.get("hosts", []))
+    untriaged = [a for a in obs.get("alerts", []) if not a.get("agent_classification")]
 
     return f"""CURRENT ENVIRONMENT STATE:
 Phase: {obs.get("incident_phase")} | Step: {obs.get("step")}/{obs.get("max_steps")} | Score: {obs.get("score_so_far", 0):.3f}
-{obs.get("message", "")}
+Message: {obs.get("message", "")}
+
+INVESTIGATION STATUS:
+- Hosts queried: {queried_count}/{total_hosts} (query unqueried hosts to reveal compromise status)
+- Alerts untriaged: {len(untriaged)}/{len(obs.get("alerts", []))}
 
 SIEM ALERTS:
 {json.dumps(alerts, indent=2)}
 
-NETWORK HOSTS:
+NETWORK HOSTS (is_queried=false means details hidden):
 {json.dumps(hosts, indent=2)}
 
 THREAT INTELLIGENCE:
-- Campaign: {intel.get("attack_campaign")}
+- Campaign: {intel.get("attack_campaign", "Unknown")}
 - Malicious IPs: {intel.get("malicious_ips", [])[:5]}
 - Known CVEs: {intel.get("known_cves", [])[:4]}
 - Malicious Hashes: {intel.get("malicious_hashes", [])[:3]}
 - C2 Domains: {intel.get("malicious_domains", [])[:3]}
+- Threat Actor: {intel.get("threat_actor", "Unknown")}
 
 Available actions: {obs.get("available_actions", [])}
-Score breakdown: {obs.get("score_breakdown", {})}
+Score breakdown: action={score_bd.get("action_correctness", 0):.3f}, explain={score_bd.get("reasoning_clarity", 0):.3f}
 
-Choose the MOST IMPORTANT action. Untriaged alerts have triaged=null.
-Output ONLY the JSON action object."""
+STRATEGY REMINDER:
+1. If unqueried hosts exist and phase is containment/eradication → query_host first
+2. If untriaged critical/high alerts exist → triage_alert
+3. If queried host shows c2_active=true → isolate_host
+4. If persistence found → remove_persistence
+5. If isolated hosts with no persistence → restore_host
 
+Choose the SINGLE most impactful action now. Output ONLY the JSON object."""
+
+
+# ── LLM Action Generator ──────────────────────────────────────────
 
 def get_llm_action(obs: dict, attempt: int = 0) -> dict:
+    """Get action from LLM with retry on parse failure."""
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -202,11 +284,11 @@ def get_llm_action(obs: dict, attempt: int = 0) -> dict:
                 {"role": "user",   "content": build_user_prompt(obs)},
             ],
             temperature=0.2,
-            max_tokens=900,
+            max_tokens=1000,
         )
         content = response.choices[0].message.content.strip()
 
-        # Strip markdown if present
+        # Strip markdown code blocks if present
         if "```" in content:
             parts = content.split("```")
             for part in parts:
@@ -223,6 +305,7 @@ def get_llm_action(obs: dict, attempt: int = 0) -> dict:
     except json.JSONDecodeError as e:
         print(f"  JSON parse error (attempt {attempt}): {e}")
         if attempt < 2:
+            time.sleep(1)
             return get_llm_action(obs, attempt + 1)
         return _fallback_action(obs)
 
@@ -232,119 +315,188 @@ def get_llm_action(obs: dict, attempt: int = 0) -> dict:
 
 
 def _fallback_action(obs: dict) -> dict:
-    """Deterministic fallback when LLM fails."""
+    """
+    Deterministic fallback when LLM fails.
+    Priority: query unqueried hosts → triage alerts → monitor
+    """
+    # Priority 1: Query unqueried hosts
+    for h in obs.get("hosts", []):
+        if not h.get("is_queried", False):
+            return {
+                "action_type": "query_host",
+                "target":      h["host_id"],
+                "parameters":  {},
+                "justification": {
+                    "reasoning": (
+                        f"Investigating host {h['host_id']} ({h.get('hostname')}) "
+                        f"with role={h.get('role')} criticality={h.get('criticality')}. "
+                        f"Must query before determining compromise status per IR workflow."
+                    ),
+                    "evidence": [{
+                        "source":          h["host_id"],
+                        "content":         f"Host {h.get('hostname')} not yet investigated",
+                        "relevance_score": 0.7,
+                    }],
+                    "risk_assessment": {
+                        "threat_level":                "MEDIUM",
+                        "confidence":                   0.6,
+                        "potential_impact":             "Unknown compromise status may hide active threat",
+                        "business_disruption_estimate": "Query is non-disruptive — read-only investigation",
+                    },
+                    "alternatives_considered": [{
+                        "action":           "isolate_host",
+                        "rejected_because": "Cannot isolate without first confirming compromise via query",
+                    }],
+                },
+            }
+
+    # Priority 2: Triage untriaged alerts
     for a in obs.get("alerts", []):
         if a.get("agent_classification") is None:
             has_ioc  = bool(a.get("ioc_matches"))
+            has_mitre = bool(a.get("mitre_technique"))
             high_sev = a["severity"] in ("critical", "high")
-            is_tp    = has_ioc or high_sev
+            is_tp    = has_ioc or has_mitre or high_sev
             return {
                 "action_type": "triage_alert",
                 "target":      a["alert_id"],
                 "parameters":  {"classification": "true_positive" if is_tp else "false_positive"},
                 "justification": {
                     "reasoning": (
-                        f"Fallback triage for alert {a['alert_id']}: severity={a['severity']}, "
-                        f"ioc_matches={a.get('ioc_matches', [])}, type={a['alert_type']}. "
-                        f"Classification based on severity and IOC presence per IR playbook."
+                        f"Triaging alert {a['alert_id']} severity={a['severity']} "
+                        f"type={a['alert_type']} confidence={a.get('confidence', 0):.2f}. "
+                        f"IOC matches={a.get('ioc_matches', [])}, MITRE={bool(a.get('mitre_technique'))}. "
+                        f"Classification based on severity, IOC presence, and MITRE mapping."
                     ),
                     "evidence": [{
                         "source":          a["alert_id"],
-                        "content":         f"severity={a['severity']}, iocs={a.get('ioc_matches', [])}",
-                        "relevance_score": 0.7,
+                        "content":         f"severity={a['severity']}, confidence={a.get('confidence', 0):.2f}, iocs={a.get('ioc_matches', [])}",
+                        "relevance_score": 0.75,
                     }],
                     "risk_assessment": {
                         "threat_level":                "HIGH" if high_sev else "MEDIUM",
-                        "confidence":                   0.65,
-                        "potential_impact":             "Security incident if true positive is missed",
-                        "business_disruption_estimate": "Triage is non-disruptive — monitoring only",
+                        "confidence":                   0.70,
+                        "potential_impact":             "Missed true positive leaves active threat unaddressed",
+                        "business_disruption_estimate": "Triage is non-disruptive — classification only",
                     },
                     "alternatives_considered": [{
                         "action":           "collect_forensics",
-                        "rejected_because": "Triage must precede forensics collection in IR workflow",
+                        "rejected_because": "Triage must precede forensics in IR workflow priority order",
                     }],
                 },
             }
 
+    # Fallback: monitor
     return {
-        "action_type": "escalate_incident",
-        "target":      "tier2",
+        "action_type": "monitor",
+        "target":      "",
         "parameters":  {},
         "justification": {
             "reasoning": (
-                "No untriaged alerts remain and no clear next action identified. "
-                "Escalating to Tier-2 SOC analysts for manual review of any remaining "
-                "threats that automated analysis has not addressed."
+                "All alerts triaged and all hosts investigated in current observation. "
+                "Monitoring network for additional indicators while awaiting phase transition. "
+                "No high-priority actions identified at this step."
             ),
             "evidence": [{
                 "source":          "system",
-                "content":         "No actionable untriaged alerts in current observation",
+                "content":         "No untriaged alerts or unqueried hosts remaining",
                 "relevance_score": 0.5,
             }],
             "risk_assessment": {
-                "threat_level":                "MEDIUM",
+                "threat_level":                "LOW",
                 "confidence":                   0.5,
-                "potential_impact":             "Delayed response if undetected threats remain",
-                "business_disruption_estimate": "Escalation is non-disruptive",
+                "potential_impact":             "Minimal — monitoring provides no active defense",
+                "business_disruption_estimate": "Non-disruptive passive monitoring",
             },
             "alternatives_considered": [{
-                "action":           "collect_forensics",
-                "rejected_because": "No specific unanalyzed hosts identified for forensic collection",
+                "action":           "escalate_incident",
+                "rejected_because": "Escalation reserved for unresolvable situations with active threats",
             }],
         },
     }
 
 
+# ── Episode Runner ────────────────────────────────────────────────
+
 def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
+    """Run one complete episode and return results."""
     print(f"\n{'='*60}")
     print(f"  Task {task_id}: {TASK_NAMES[task_id]}")
     print(f"  Seed: {seed} | Max Steps: {MAX_STEPS[task_id]}")
     print(f"{'='*60}")
 
-    obs    = env_client.reset(task_id=task_id, seed=seed)
-    done   = False
-    step   = 0
-    rewards = []
-    t_start = time.time()
+    obs, info = env_client.reset(task_id=task_id, seed=seed)
 
+    print(f"  Curriculum Level: {info.get('curriculum_level', 'N/A')}")
+    print(f"  Difficulty:       {info.get('difficulty_tier', 'N/A')}")
     print(f"  Phase: {obs.get('incident_phase')} | "
           f"Alerts: {len(obs.get('alerts', []))} | "
           f"Hosts: {len(obs.get('hosts', []))}")
 
-    while not done and step < MAX_STEPS[task_id]:
-        # Per-task 6-minute limit
+    terminated  = False
+    truncated   = False
+    step        = 0
+    rewards     = []
+    t_start     = time.time()
+
+    while not (terminated or truncated) and step < MAX_STEPS[task_id]:
+
+        # Per-task 6-minute safety limit
         if time.time() - t_start > 360:
             print("  Time limit for this task reached")
             break
 
         step += 1
+        queried = sum(1 for h in obs.get("hosts", []) if h.get("is_queried"))
+        total_h = len(obs.get("hosts", []))
+        untriaged = sum(1 for a in obs.get("alerts", []) if not a.get("agent_classification"))
+
         print(f"\n  Step {step}/{MAX_STEPS[task_id]} | "
               f"Score: {obs.get('score_so_far', 0):.3f} | "
-              f"Phase: {obs.get('incident_phase')}")
+              f"Phase: {obs.get('incident_phase')} | "
+              f"Queried: {queried}/{total_h} | "
+              f"Untriaged: {untriaged}")
 
         action = get_llm_action(obs)
-        print(f"  -> {action.get('action_type')} | {action.get('target')}")
+        print(f"  -> {action.get('action_type')} | target={action.get('target')}")
 
         try:
-            result  = env_client.step(action)
-            obs     = result["observation"]
-            reward  = result["reward"]
-            done    = result["done"]
-            rewards.append(reward["value"])
+            result     = env_client.step(action)
+            obs        = result["observation"]
 
-            print(f"  <- reward={reward['value']:+.3f} | "
-                  f"correct={reward['action_correctness']:.2f} | "
-                  f"explain={reward['explanation_quality']:.2f}")
+            # reward is a FLOAT not a dict
+            reward     = float(result["reward"])
+            terminated = bool(result["done"])
+            truncated  = bool(result.get("truncated", False))
+            info_step  = result.get("info", {})
 
-            msg = result.get("info", {}).get("action_result", {}).get("message", "")
+            rewards.append(reward)
+
+            # Extract reward breakdown from info
+            rb = info_step.get("reward_breakdown", {})
+            print(f"  <- reward={reward:+.3f} | "
+                  f"action={rb.get('action_correctness', 0):.2f} | "
+                  f"explain={rb.get('explanation_quality', 0):.2f} | "
+                  f"progress={rb.get('progress_bonus', 0):.3f} | "
+                  f"reason={info_step.get('termination_reason', 'in_progress')}")
+
+            msg = info_step.get("action_result", {}).get("message", "")
             if msg:
-                print(f"     {msg}")
+                print(f"     → {msg}")
+
+            if terminated or truncated:
+                reason = info_step.get("termination_reason", "unknown")
+                print(f"\n  Episode ended: {reason}")
 
         except Exception as e:
             print(f"  Step error: {e}")
+            import traceback
+            traceback.print_exc()
             break
 
+    # Grade the episode
     grade   = env_client.grade(task_id)
+    metrics = env_client.get_metrics()
     elapsed = time.time() - t_start
 
     print(f"\n  {'-'*50}")
@@ -356,6 +508,16 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
     print(f"  Containment Rate:   {grade['containment_rate']:.2f}")
     print(f"  Steps:              {grade['steps_taken']} | Time: {elapsed:.1f}s")
 
+    # Show detection metrics if available
+    if metrics and "detection_metrics" in metrics:
+        dm = metrics["detection_metrics"]
+        print(f"  Precision: {dm.get('precision', 0):.3f} | "
+              f"Recall: {dm.get('recall', 0):.3f} | "
+              f"F1: {dm.get('f1_score', 0):.3f}")
+
+    for fb in grade.get("feedback", []):
+        print(f"  {fb}")
+
     return {
         "task_id":      task_id,
         "task_name":    TASK_NAMES[task_id],
@@ -363,10 +525,16 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
         "final_score":  grade["final_score"],
         "steps":        step,
         "total_reward": round(sum(rewards), 4),
+        "avg_reward":   round(sum(rewards) / max(len(rewards), 1), 4),
         "elapsed_s":    round(elapsed, 1),
+        "terminated":   terminated,
+        "truncated":    truncated,
         "grade":        grade,
+        "detection_metrics": metrics.get("detection_metrics", {}),
     }
 
+
+# ── Main ──────────────────────────────────────────────────────────
 
 def main():
     print("\n" + "="*60)
@@ -377,6 +545,7 @@ def main():
 
     env = EnvClient(ENV_URL)
 
+    # Wait for environment to be ready
     print("\n  Waiting for environment...")
     for i in range(30):
         if env.health():
@@ -393,39 +562,52 @@ def main():
     t_global = time.time()
 
     for task_id in [1, 2, 3]:
-        if time.time() - t_global > 1080:  # 18 min global limit
+        # 18 minute global safety limit
+        if time.time() - t_global > 1080:
             print("Global time limit reached")
             break
+
         result = run_episode(env, task_id=task_id, seed=SEED)
         results.append(result)
 
-    # Summary
+    # Final summary
     print("\n" + "="*60)
     print("  RESULTS SUMMARY")
     print("="*60)
-    print(f"  {'Task':<32} {'Score':>8} {'Steps':>6} {'Time':>8}")
-    print(f"  {'-'*56}")
-    for r in results:
-        print(f"  {r['task_name']:<32} {r['final_score']:>8.4f} "
-              f"{r['steps']:>6} {r['elapsed_s']:>7.1f}s")
+    print(f"  {'Task':<32} {'Score':>8} {'Steps':>6} {'Time':>8} {'End':>12}")
+    print(f"  {'-'*62}")
 
-    avg = sum(r["final_score"] for r in results) / max(len(results), 1)
-    print(f"  {'-'*56}")
-    print(f"  {'AVERAGE':<32} {avg:>8.4f}")
+    for r in results:
+        end_type = "truncated" if r.get("truncated") else "terminated"
+        print(f"  {r['task_name']:<32} {r['final_score']:>8.4f} "
+              f"{r['steps']:>6} {r['elapsed_s']:>7.1f}s {end_type:>12}")
+
+    if results:
+        avg = sum(r["final_score"] for r in results) / len(results)
+        print(f"  {'-'*62}")
+        print(f"  {'AVERAGE':<32} {avg:>8.4f}")
 
     elapsed = time.time() - t_global
-    print(f"\n  Total: {elapsed:.1f}s | {'OK' if elapsed < 1200 else 'OVER LIMIT'}")
+    status  = "OK" if elapsed < 1200 else "OVER TIME LIMIT"
+    print(f"\n  Total elapsed: {elapsed:.1f}s | Status: {status}")
     print("="*60)
 
+    # Save results
+    output = {
+        "model":         MODEL_NAME,
+        "env_url":       ENV_URL,
+        "seed":          SEED,
+        "results":       results,
+        "average_score": round(sum(r["final_score"] for r in results) / max(len(results), 1), 4),
+        "total_elapsed": round(elapsed, 1),
+        "status":        status,
+    }
+
     with open("results.json", "w") as f:
-        json.dump({
-            "model":         MODEL_NAME,
-            "seed":          SEED,
-            "results":       results,
-            "average_score": round(avg, 4),
-            "total_elapsed": round(elapsed, 1),
-        }, f, indent=2)
-    print("  Saved: results.json")
+        json.dump(output, f, indent=2)
+
+    print(f"  Saved: results.json")
+    print(f"  Average Score: {output['average_score']:.4f}")
 
 
 if __name__ == "__main__":

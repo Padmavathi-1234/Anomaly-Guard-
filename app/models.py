@@ -54,6 +54,8 @@ class ActionType(str, Enum):
     RESTORE_HOST = "restore_host"
     COLLECT_FORENSICS = "collect_forensics"
     ESCALATE_INCIDENT = "escalate_incident"
+    QUERY_HOST = "query_host"          # NEW - for partial observability
+    MONITOR = "monitor"                 # NEW - for baseline agents
 
 
 # ── Data Models ─────────────────────────────────────────────────────
@@ -98,6 +100,8 @@ class NetworkHost(BaseModel):
     vulnerabilities: List[str] = Field(default_factory=list)
     accounts: List[str] = Field(default_factory=list)
     business_impact: float = Field(ge=0.0, le=1.0, default=0.5)
+    is_queried: bool = False           # NEW - for partial observability
+    services: List[str] = Field(default_factory=list)  # NEW
 
 
 class NetworkEvent(BaseModel):

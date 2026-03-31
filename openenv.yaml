@@ -2,49 +2,149 @@ name: anomalyguard
 description: >
   Explainable AI for Cybersecurity — RL environment requiring agents to
   JUSTIFY every action with evidence-based reasoning, risk assessment,
-  and alternative analysis. Extends openenv.env.env.Env.
+  and alternative analysis. Features MITRE ATT&CK integration,
+  EU AI Act compliance, partial observability, and adaptive curriculum.
+  Extends openenv.env.env.Env.
 version: 1.0.0
+environment:
+  class: app.environment.AnomalyGuardEnvironment
+  base_class: openenv.env.env.Env
+  module: app.environment
 
 tasks:
   - id: 1
     name: Alert Triage
-    description: Triage 6-10 SIEM alerts with evidence-based justifications
+    description: Triage 6-10 SIEM alerts as true/false positives with evidence-based justifications
     difficulty: easy
     max_steps: 15
+    target_score: 0.60
 
   - id: 2
     name: Incident Containment
-    description: Contain active breach across 10-15 hosts with justified decisions
+    description: Contain active breach across 10-15 hosts with justified containment decisions
     difficulty: medium
     max_steps: 20
+    target_score: 0.50
 
   - id: 3
     name: Full Incident Response
-    description: Complete IR lifecycle — detect, contain, eradicate, recover
+    description: Complete IR lifecycle — detect, contain, eradicate, recover with full justification chain
     difficulty: hard
     max_steps: 30
+    target_score: 0.40
+
+reward:
+  formula: "action_correctness * 0.60 + explanation_quality * 0.40"
+  action_weight: 0.60
+  explanation_weight: 0.40
+  range: [-1.0, 1.0]
+  components:
+    - action_correctness: correctness of IR decision
+    - explanation_quality: quality of ActionJustification
+    - progress_bonus: milestone completion rewards
+    - spread_penalty: penalty for malware propagation
+    - step_cost: -0.01 per step to discourage stalling
+
+termination:
+  terminated_conditions:
+    - task_complete: all objectives met (success)
+    - network_shutdown: all hosts isolated (catastrophic overreaction)
+    - total_compromise: all hosts infected (catastrophic failure)
+  truncated_conditions:
+    - timeout: max_steps reached (artificial cutoff)
+
+observability:
+  type: partial
+  mechanism: >
+    Host compromise details (c2_active, persistence, vulnerabilities,
+    accounts, status) are hidden until agent uses query_host action.
+    Mimics real SOC analyst workflow.
+  visible_always:
+    - host_id
+    - hostname
+    - ip_address
+    - role
+    - criticality
+    - services
+  revealed_after_query:
+    - c2_active
+    - persistence
+    - vulnerabilities
+    - accounts
+    - status
+
+curriculum:
+  levels: 10
+  tiers:
+    beginner: { levels: 1-3, difficulty: 0.3-0.5, max_steps: 15 }
+    intermediate: { levels: 4-6, difficulty: 0.5-0.7, max_steps: 20 }
+    expert: { levels: 7-10, difficulty: 0.7-1.0, max_steps: 30 }
+  advance_threshold: 0.75
+  regress_threshold: 0.35
+  evaluation_window: 5
 
 endpoints:
-  health: GET /health
-  tasks: GET /tasks
-  reset: POST /reset?task_id={task_id}&seed={seed}
-  step: POST /step
-  state: GET /state
-  grader: POST /grader?task_id={task_id}
-  baseline: POST /baseline?task_id={task_id}&seed={seed}
+  core:
+    health: GET /health
+    tasks: GET /tasks
+    reset: POST /reset?task_id={task_id}&seed={seed}
+    step: POST /step
+    state: GET /state
+    state_raw: GET /state/raw
+    grader: POST /grader?task_id={task_id}
+
+  baseline:
+    run: POST /baseline?task_id={task_id}&seed={seed}
+    reference: GET /baseline/reference
+
+  observability:
+    host_visibility: GET /host/{host_id}/visibility
+    status: GET /observability/status
+    dependencies: GET /host/{host_id}/dependencies
+
+  metrics:
+    detailed: GET /metrics/detailed
+    rewards: GET /metrics/rewards
+    spread: GET /metrics/spread
+
+  curriculum:
+    status: GET /curriculum/status
+    toggle: POST /curriculum/toggle
+    diversity: GET /episodes/diversity
+
+  compliance:
+    audit: GET /compliance/audit
+    trail: GET /compliance/trail
 
 docker:
   build: docker build -t anomalyguard .
   run: docker run -p 7860:7860 anomalyguard
 
-environment:
-  class: app.environment.AnomalyGuardEnvironment
-  base_class: openenv.env.env.Env
+server:
+  host: 0.0.0.0
+  port: 7860
+  framework: fastapi
 
 innovation:
-  - Mandatory ActionJustification with every action
-  - Reward = action_correctness * 0.35 + explanation_quality * 0.65
-  - Evidence validation against actual observations
-  - Multi-dimensional grading (action + explanation + evidence + risk)
-  - MITRE ATT&CK-based realistic scenarios
-  - Deterministic reproducibility via seeded random
+  - "Mandatory ActionJustification with every action (EU AI Act Article 14)"
+  - "Reward = action_correctness * 0.60 + explanation_quality * 0.40"
+  - "Partial observability — host details hidden until query_host investigation"
+  - "EU AI Act compliance engine — 5-check audit (Articles 10, 13, 14)"
+  - "10-level adaptive curriculum with automatic difficulty adjustment"
+  - "Topology-based malware spread simulation with network graph"
+  - "Milestone-based dense progress rewards for RL training efficiency"
+  - "Correct terminated vs truncated separation for bootstrap learning"
+  - "MITRE ATT&CK-based scenarios with real IOCs, CVEs, C2 IPs"
+  - "Deterministic reproducibility — same seed always produces identical scenario"
+  - "Evidence validation against actual observations in grader"
+  - "Multi-phase IR workflow — detection, containment, eradication, recovery"
+
+grading:
+  task_1: "triage_accuracy * 0.70 + avg_explanation * 0.30"
+  task_2: "(triage * 0.5 + containment * 0.5) * 0.80 + avg_explanation * 0.20"
+  task_3: "(triage*0.20 + containment*0.30 + eradication*0.25 + recovery*0.25) * 0.75 + avg_explanation * 0.25"
+
+reproducibility:
+  method: random.Random(seed)
+  guarantee: "Same seed + task_id always produces identical alerts, hosts, threat_intel"
+  scope: scenarios.py — no global state mutation

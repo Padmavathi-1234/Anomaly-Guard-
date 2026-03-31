@@ -300,6 +300,16 @@ def _generate_hosts(
         else:
             role, crit = "server", "medium"
 
+        # Role-based services for partial observability visibility
+        role_services = {
+            "workstation":       ["rdp", "smb", "http"],
+            "server":            ["http", "https", "ssh", "smb"],
+            "database":          ["mysql", "mssql", "postgresql", "ssh"],
+            "domain_controller": ["ldap", "kerberos", "dns", "smb", "rpc"],
+        }
+        host_services = role_services.get(role, ["ssh"])
+
+
         subnet = 1 if role in ("workstation",) else 2 if role == "server" else 3
         hosts.append(NetworkHost(
             host_id=f"HOST-{i + 1:03d}",
@@ -313,6 +323,8 @@ def _generate_hosts(
             vulnerabilities=[],
             accounts=[],
             business_impact={"low": 0.2, "medium": 0.5, "high": 0.8, "critical": 1.0}[crit],
+            services=host_services,    # ADD THIS LINE
+            is_queried=False,          # ADD THIS LINE
         ))
 
     return hosts

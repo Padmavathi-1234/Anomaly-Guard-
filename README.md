@@ -1,3 +1,20 @@
+---
+title: AnomalyGuard
+emoji: 🛡️
+colorFrom: red
+colorTo: blue
+sdk: docker
+pinned: false
+license: mit
+tags:
+  - openenv
+  - reinforcement-learning
+  - cybersecurity
+  - incident-response
+  - explainable-ai
+  - curriculum-learning
+---
+
 # AnomalyGuard — Explainable AI for Cybersecurity Incident Response
 
 [![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-blue)](https://github.com/openenv)
@@ -17,6 +34,7 @@ By prioritizing action correctness while maintaining meaningful explanation ince
 ## 🚀 Key Features
 
 ### Core Capabilities
+
 - 🔍 **Evidence-Based Reasoning**: Every action requires citing specific alert IDs, host IDs, CVEs, and MITRE techniques.
 - 🎯 **MITRE ATT&CK Integration**: Incorporates 8 real-world attack patterns with genuine Indicators of Compromise (IOCs), file hashes, and Command & Control (C2) IPs.
 - 📊 **Multi-Dimensional Grading**: Comprehensive scoring across action correctness, reasoning clarity, evidence validity, and risk accuracy.
@@ -24,6 +42,7 @@ By prioritizing action correctness while maintaining meaningful explanation ince
 - 🤖 **OpenEnv Compatible**: Fully extends the `openenv.env.env.Env` base class for seamless integration with the OpenEnv ecosystem.
 
 ### Advanced Implemented Features
+
 - 🦠 **Malware Spread Simulation (Topology-Based)**: Realistically models how malware propagates through an enterprise network based on defined network topology and host vulnerabilities.
 - 📈 **Adaptive Curriculum Learning**: An intelligent difficulty scaling system that automatically adjusts scenario complexity based on the agent's historical performance.
 - 🔗 **Strict Task Dependency Chain**: Implements a rigid, realistic incident response workflow (e.g., you cannot eradicate a threat before containing it, or contain it before detection).
@@ -59,11 +78,13 @@ anomalyguard/
 ### Local Development
 
 1. **Install dependencies:**
+
 ```bash
 pip install -r requirements.txt
 ```
 
 2. **Run the FastAPI server:**
+
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 7860
 ```
@@ -71,11 +92,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 7860
 ### Docker Deployment
 
 1. **Build the image:**
+
 ```bash
 docker build -t anomalyguard .
 ```
 
 2. **Run the container:**
+
 ```bash
 docker run -p 7860:7860 anomalyguard
 ```
@@ -86,31 +109,32 @@ docker run -p 7860:7860 anomalyguard
 
 The environment exposes a robust FastAPI backend:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check / API status |
-| `/tasks` | GET | List available curriculum tasks |
-| `/reset?task_id=1&seed=42` | POST | Reset environment for a new deterministic episode |
-| `/step` | POST | Execute an IR action with required justification |
-| `/state` | GET | Retrieve the current network/alert observation |
-| `/grader?task_id=1` | POST | Grade the completed episode |
-| `/baseline?task_id=1&seed=42`| POST | Run the rule-based baseline agent for comparison |
+| Endpoint                      | Method | Description                                       |
+| ----------------------------- | ------ | ------------------------------------------------- |
+| `/health`                     | GET    | Health check / API status                         |
+| `/tasks`                      | GET    | List available curriculum tasks                   |
+| `/reset?task_id=1&seed=42`    | POST   | Reset environment for a new deterministic episode |
+| `/step`                       | POST   | Execute an IR action with required justification  |
+| `/state`                      | GET    | Retrieve the current network/alert observation    |
+| `/grader?task_id=1`           | POST   | Grade the completed episode                       |
+| `/baseline?task_id=1&seed=42` | POST   | Run the rule-based baseline agent for comparison  |
 
 ---
 
 ## 🎯 Task Hierarchy (Curriculum)
 
-| ID | Name | Difficulty | Max Steps | Description |
-|----|------|-----------|-----------|-------------|
-| 1 | Alert Triage | Easy | 15 | Triage 6-10 SIEM alerts with evidence-based justifications |
-| 2 | Incident Containment | Medium | 20 | Contain active topological breach across 10-15 hosts |
-| 3 | Full Incident Response | Hard | 30 | Full IR dependency lifecycle: detect → contain → eradicate → recover |
+| ID  | Name                   | Difficulty | Max Steps | Description                                                          |
+| --- | ---------------------- | ---------- | --------- | -------------------------------------------------------------------- |
+| 1   | Alert Triage           | Easy       | 15        | Triage 6-10 SIEM alerts with evidence-based justifications           |
+| 2   | Incident Containment   | Medium     | 20        | Contain active topological breach across 10-15 hosts                 |
+| 3   | Full Incident Response | Hard       | 30        | Full IR dependency lifecycle: detect → contain → eradicate → recover |
 
 ---
 
 ## 🧠 Scoring & Explainability
 
 To satisfy the **EU AI Act**, every action payload must include an `ActionJustification` structured as follows:
+
 - **Reasoning** (min 50 chars): Explicitly citing specific evidence.
 - **Evidence** (min 1 item): Referencing actual observation data (IPs, hashes, etc.).
 - **Risk Assessment**: Threat level, confidence score, and potential impact.
@@ -145,14 +169,14 @@ python inference.py
 
 ## ⚙️ Environment Variables
 
-Refer to `.env.example` for secure deployment. 
+Refer to `.env.example` for secure deployment.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_BASE_URL` | LLM API endpoint | `https://api.openai.com/v1` |
-| `MODEL_NAME` | Model identifier | `gpt-4o-mini` |
-| `HF_TOKEN` | Hugging Face / OpenAI API key | — |
-| `ENV_URL` | OpenEnv Backend URL | `http://localhost:7860` |
+| Variable       | Description                   | Default                     |
+| -------------- | ----------------------------- | --------------------------- |
+| `API_BASE_URL` | LLM API endpoint              | `https://api.openai.com/v1` |
+| `MODEL_NAME`   | Model identifier              | `gpt-4o-mini`               |
+| `HF_TOKEN`     | Hugging Face / OpenAI API key | —                           |
+| `ENV_URL`      | OpenEnv Backend URL           | `http://localhost:7860`     |
 
 ---
 

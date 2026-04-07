@@ -21,7 +21,9 @@ from openai import OpenAI
 # ── Config ────────────────────────────────────────────────────────
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "gpt-4o-mini")
-HF_TOKEN     = os.getenv("HF_TOKEN",     os.getenv("OPENAI_API_KEY", ""))
+HF_TOKEN     = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+if not HF_TOKEN:
+    raise ValueError("ERROR: HF_TOKEN or OPENAI_API_KEY environment variable is required")
 ENV_URL      = os.getenv("ENV_URL",      "http://localhost:7860")
 SEED         = 42
 MAX_STEPS    = {1: 15, 2: 20, 3: 30}
@@ -303,14 +305,14 @@ def get_llm_action(obs: dict, attempt: int = 0) -> dict:
         return json.loads(content)
 
     except json.JSONDecodeError as e:
-        print(f"  JSON parse error (attempt {attempt}): {e}")
+        print(f"  JSON parse error (attempt {attempt}): {e}", file=sys.stderr)
         if attempt < 2:
             time.sleep(1)
             return get_llm_action(obs, attempt + 1)
         return _fallback_action(obs)
 
     except Exception as e:
-        print(f"  LLM error: {e}")
+        print(f"  LLM error: {e}", file=sys.stderr)
         return _fallback_action(obs)
 
 
@@ -420,20 +422,20 @@ def _fallback_action(obs: dict) -> dict:
 
 def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
     """Run one complete episode and return results."""
-    print(f"\n{'='*60}")
-    print(f"  Task {task_id}: {TASK_NAMES[task_id]}")
-    print(f"  Seed: {seed} | Max Steps: {MAX_STEPS[task_id]}")
-    print(f"{'='*60}")
+    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"  Task {task_id}: {TASK_NAMES[task_id]}", file=sys.stderr)
+    print(f"  Seed: {seed} | Max Steps: {MAX_STEPS[task_id]}", file=sys.stderr)
+    print(f"{'='*60}", file=sys.stderr)
 
     obs, info = env_client.reset(task_id=task_id, seed=seed)
     
     print(f"[START] task={TASK_NAMES[task_id]}", flush=True)
 
-    print(f"  Curriculum Level: {info.get('curriculum_level', 'N/A')}")
-    print(f"  Difficulty:       {info.get('difficulty_tier', 'N/A')}")
+    print(f"  Curriculum Level: {info.get('curriculum_level', 'N/A')}", file=sys.stderr)
+    print(f"  Difficulty:       {info.get('difficulty_tier', 'N/A')}", file=sys.stderr)
     print(f"  Phase: {obs.get('incident_phase')} | "
           f"Alerts: {len(obs.get('alerts', []))} | "
-          f"Hosts: {len(obs.get('hosts', []))}")
+          f"Hosts: {len(obs.get('hosts', []))}", file=sys.stderr)
 
     terminated  = False
     truncated   = False
@@ -445,7 +447,7 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
 
         # Per-task 6-minute safety limit
         if time.time() - t_start > 360:
-            print("  Time limit for this task reached")
+            print("  Time limit for this task reached", file=sys.stderr)
             break
 
         step += 1
@@ -457,10 +459,10 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
               f"Score: {obs.get('score_so_far', 0):.3f} | "
               f"Phase: {obs.get('incident_phase')} | "
               f"Queried: {queried}/{total_h} | "
-              f"Untriaged: {untriaged}")
+              f"Untriaged: {untriaged}", file=sys.stderr)
 
         action = get_llm_action(obs)
-        print(f"  -> {action.get('action_type')} | target={action.get('target')}")
+        print(f"  -> {action.get('action_type')} | target={action.get('target')}", file=sys.stderr)
 
         try:
             result     = env_client.step(action)
@@ -482,18 +484,18 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
                   f"action={rb.get('action_correctness', 0):.2f} | "
                   f"explain={rb.get('explanation_quality', 0):.2f} | "
                   f"progress={rb.get('progress_bonus', 0):.3f} | "
-                  f"reason={info_step.get('termination_reason', 'in_progress')}")
+                  f"reason={info_step.get('termination_reason', 'in_progress')}", file=sys.stderr)
 
             msg = info_step.get("action_result", {}).get("message", "")
             if msg:
-                print(f"     → {msg}")
+                print(f"     → {msg}", file=sys.stderr)
 
             if terminated or truncated:
                 reason = info_step.get("termination_reason", "unknown")
-                print(f"\n  Episode ended: {reason}")
+                print(f"\n  Episode ended: {reason}", file=sys.stderr)
 
         except Exception as e:
-            print(f"  Step error: {e}")
+            print(f"  Step error: {e}", file=sys.stderr)
             import traceback
             traceback.print_exc()
             break
@@ -506,7 +508,7 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
         metrics = env_client.get_metrics()
         final_score = grade.get('final_score', 0.0)
     except Exception as e:
-        print(f"  Warning: Grading failed - {e}")
+        print(f"  Warning: Grading failed - {e}", file=sys.stderr)
         grade = {
             'final_score': 0.0,
             'action_correctness': 0.0,
@@ -523,24 +525,24 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
     # CRITICAL: Always print [END] - required for Phase 2 validation
     print(f"[END] task={TASK_NAMES[task_id]} score={final_score} steps={step}", flush=True)
 
-    print(f"\n  {'-'*50}")
-    print(f"  FINAL SCORE:        {grade['final_score']:.4f}")
-    print(f"  Action Correctness: {grade['action_correctness']:.4f}")
-    print(f"  Explanation Quality:{grade['explanation_quality']:.4f}")
-    print(f"  Threats Detected:   {grade['threats_detected']}")
-    print(f"  Threats Missed:     {grade['threats_missed']}")
-    print(f"  Containment Rate:   {grade['containment_rate']:.2f}")
-    print(f"  Steps:              {grade['steps_taken']} | Time: {elapsed:.1f}s")
+    print(f"\n  {'-'*50}", file=sys.stderr)
+    print(f"  FINAL SCORE:        {grade['final_score']:.4f}", file=sys.stderr)
+    print(f"  Action Correctness: {grade['action_correctness']:.4f}", file=sys.stderr)
+    print(f"  Explanation Quality:{grade['explanation_quality']:.4f}", file=sys.stderr)
+    print(f"  Threats Detected:   {grade['threats_detected']}", file=sys.stderr)
+    print(f"  Threats Missed:     {grade['threats_missed']}", file=sys.stderr)
+    print(f"  Containment Rate:   {grade['containment_rate']:.2f}", file=sys.stderr)
+    print(f"  Steps:              {grade['steps_taken']} | Time: {elapsed:.1f}s", file=sys.stderr)
 
     # Show detection metrics if available
     if metrics and "detection_metrics" in metrics:
         dm = metrics["detection_metrics"]
         print(f"  Precision: {dm.get('precision', 0):.3f} | "
               f"Recall: {dm.get('recall', 0):.3f} | "
-              f"F1: {dm.get('f1_score', 0):.3f}")
+              f"F1: {dm.get('f1_score', 0):.3f}", file=sys.stderr)
 
     for fb in grade.get("feedback", []):
-        print(f"  {fb}")
+        print(f"  {fb}", file=sys.stderr)
 
     return {
         "task_id":      task_id,
@@ -561,25 +563,25 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
 # ── Main ──────────────────────────────────────────────────────────
 
 def main():
-    print("\n" + "="*60)
-    print("  AnomalyGuard — LLM Agent Inference")
-    print(f"  Model:   {MODEL_NAME}")
-    print(f"  Env URL: {ENV_URL}")
-    print("="*60)
+    print("\n" + "="*60, file=sys.stderr)
+    print("  AnomalyGuard — LLM Agent Inference", file=sys.stderr)
+    print(f"  Model:   {MODEL_NAME}", file=sys.stderr)
+    print(f"  Env URL: {ENV_URL}", file=sys.stderr)
+    print("="*60, file=sys.stderr)
 
     env = EnvClient(ENV_URL)
 
     # Wait for environment to be ready
-    print("\n  Waiting for environment...")
+    print("\n  Waiting for environment...", file=sys.stderr)
     for i in range(30):
         if env.health():
-            print("  Environment ready")
+            print("  Environment ready", file=sys.stderr)
             break
-        print(f"  Attempt {i+1}/30...")
+        print(f"  Attempt {i+1}/30...", file=sys.stderr)
         time.sleep(2)
     else:
-        print("  ERROR: Environment not reachable")
-        print("  Start with: uvicorn app.main:app --host 0.0.0.0 --port 7860")
+        print("  ERROR: Environment not reachable", file=sys.stderr)
+        print("  Start with: uvicorn app.main:app --host 0.0.0.0 --port 7860", file=sys.stderr)
         sys.exit(1)
 
     results  = []
@@ -588,33 +590,33 @@ def main():
     for task_id in [1, 2, 3]:
         # 18 minute global safety limit
         if time.time() - t_global > 1080:
-            print("Global time limit reached")
+            print("Global time limit reached", file=sys.stderr)
             break
 
         result = run_episode(env, task_id=task_id, seed=SEED)
         results.append(result)
 
     # Final summary
-    print("\n" + "="*60)
-    print("  RESULTS SUMMARY")
-    print("="*60)
-    print(f"  {'Task':<32} {'Score':>8} {'Steps':>6} {'Time':>8} {'End':>12}")
-    print(f"  {'-'*62}")
+    print("\n" + "="*60, file=sys.stderr)
+    print("  RESULTS SUMMARY", file=sys.stderr)
+    print("="*60, file=sys.stderr)
+    print(f"  {'Task':<32} {'Score':>8} {'Steps':>6} {'Time':>8} {'End':>12}", file=sys.stderr)
+    print(f"  {'-'*62}", file=sys.stderr)
 
     for r in results:
         end_type = "truncated" if r.get("truncated") else "terminated"
         print(f"  {r['task_name']:<32} {r['final_score']:>8.4f} "
-              f"{r['steps']:>6} {r['elapsed_s']:>7.1f}s {end_type:>12}")
+              f"{r['steps']:>6} {r['elapsed_s']:>7.1f}s {end_type:>12}", file=sys.stderr)
 
     if results:
         avg = sum(r["final_score"] for r in results) / len(results)
-        print(f"  {'-'*62}")
-        print(f"  {'AVERAGE':<32} {avg:>8.4f}")
+        print(f"  {'-'*62}", file=sys.stderr)
+        print(f"  {'AVERAGE':<32} {avg:>8.4f}", file=sys.stderr)
 
     elapsed = time.time() - t_global
     status  = "OK" if elapsed < 1200 else "OVER TIME LIMIT"
-    print(f"\n  Total elapsed: {elapsed:.1f}s | Status: {status}")
-    print("="*60)
+    print(f"\n  Total elapsed: {elapsed:.1f}s | Status: {status}", file=sys.stderr)
+    print("="*60, file=sys.stderr)
 
     # Save results
     output = {
@@ -630,8 +632,8 @@ def main():
     with open("results.json", "w") as f:
         json.dump(output, f, indent=2)
 
-    print(f"  Saved: results.json")
-    print(f"  Average Score: {output['average_score']:.4f}")
+    print(f"  Saved: results.json", file=sys.stderr)
+    print(f"  Average Score: {output['average_score']:.4f}", file=sys.stderr)
 
 
 if __name__ == "__main__":

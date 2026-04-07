@@ -26,9 +26,9 @@ ENV_URL      = os.getenv("ENV_URL",      "http://localhost:7860")
 SEED         = 42
 MAX_STEPS    = {1: 15, 2: 20, 3: 30}
 TASK_NAMES   = {
-    1: "Alert Triage",
-    2: "Incident Containment",
-    3: "Full Incident Response",
+    1: "alert_triage",
+    2: "incident_containment",
+    3: "full_incident_response",
 }
 
 client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
@@ -426,6 +426,8 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
     print(f"{'='*60}")
 
     obs, info = env_client.reset(task_id=task_id, seed=seed)
+    
+    print(f"[START] task={TASK_NAMES[task_id]}", flush=True)
 
     print(f"  Curriculum Level: {info.get('curriculum_level', 'N/A')}")
     print(f"  Difficulty:       {info.get('difficulty_tier', 'N/A')}")
@@ -472,6 +474,8 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
 
             rewards.append(reward)
 
+            print(f"[STEP] step={step} reward={reward}", flush=True)
+
             # Extract reward breakdown from info
             rb = info_step.get("reward_breakdown", {})
             print(f"  <- reward={reward:+.3f} | "
@@ -498,6 +502,8 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
     grade   = env_client.grade(task_id)
     metrics = env_client.get_metrics()
     elapsed = time.time() - t_start
+
+    print(f"[END] task={TASK_NAMES[task_id]} score={grade['final_score']} steps={step}", flush=True)
 
     print(f"\n  {'-'*50}")
     print(f"  FINAL SCORE:        {grade['final_score']:.4f}")

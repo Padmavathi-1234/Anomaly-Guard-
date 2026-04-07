@@ -498,12 +498,30 @@ def run_episode(env_client: EnvClient, task_id: int, seed: int = 42) -> dict:
             traceback.print_exc()
             break
 
-    # Grade the episode
-    grade   = env_client.grade(task_id)
-    metrics = env_client.get_metrics()
+    # Grade the episode - ensure [END] always prints
     elapsed = time.time() - t_start
+    
+    try:
+        grade   = env_client.grade(task_id)
+        metrics = env_client.get_metrics()
+        final_score = grade.get('final_score', 0.0)
+    except Exception as e:
+        print(f"  Warning: Grading failed - {e}")
+        grade = {
+            'final_score': 0.0,
+            'action_correctness': 0.0,
+            'explanation_quality': 0.0,
+            'threats_detected': 0,
+            'threats_missed': 0,
+            'containment_rate': 0.0,
+            'steps_taken': step,
+            'feedback': []
+        }
+        metrics = {}
+        final_score = 0.0
 
-    print(f"[END] task={TASK_NAMES[task_id]} score={grade['final_score']} steps={step}", flush=True)
+    # CRITICAL: Always print [END] - required for Phase 2 validation
+    print(f"[END] task={TASK_NAMES[task_id]} score={final_score} steps={step}", flush=True)
 
     print(f"\n  {'-'*50}")
     print(f"  FINAL SCORE:        {grade['final_score']:.4f}")

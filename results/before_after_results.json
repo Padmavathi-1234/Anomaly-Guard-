@@ -1,0 +1,17 @@
+{
+  "baseline": {
+    "prevention_rate": 0.0,
+    "avg_detection_step": 0,
+    "avg_reward": -10.0,
+    "coordination_score": 0.0,
+    "episodes": 30
+  },
+  "trained": {
+    "prevention_rate": 0.0,
+    "avg_detection_step": 0,
+    "avg_reward": -10.0,
+    "coordination_score": 0.0,
+    "episodes": 30
+  },
+  "timestamp": 1776950261.4980857
+}

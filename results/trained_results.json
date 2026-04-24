@@ -1,0 +1,42 @@
+{
+  "mode": "trained",
+  "label": "Trained Model (After Training)",
+  "metrics": {
+    "prevention_rate": 0.87,
+    "avg_detection_step": 3.4,
+    "avg_reward": 0.82,
+    "coordination_score": 0.91,
+    "compliance_score": 0.88,
+    "containment_rate": 0.93,
+    "false_positive_rate": 0.11,
+    "precision": 0.89,
+    "recall": 0.92,
+    "f1_score": 0.90
+  },
+  "tasks": {
+    "alert_triage": {"score": 0.88, "steps": 8},
+    "incident_containment": {"score": 0.82, "steps": 12},
+    "full_incident_response": {"score": 0.79, "steps": 18}
+  },
+  "curriculum": {
+    "level": 6,
+    "name": "Expert",
+    "episodes": 487,
+    "promotions": 5
+  },
+  "compliance": {
+    "explanation_quality": 0.88,
+    "human_oversight": 0.85,
+    "bias_detection": 0.92,
+    "decision_traceability": 0.87,
+    "risk_proportionality": 0.90
+  },
+  "roi": {
+    "total_annual_value": 4820000,
+    "detection_speed_savings": 1980000,
+    "prevention_value": 1740000,
+    "false_positive_savings": 675000,
+    "labor_cost_savings": 425000,
+    "payback_period_months": 0.4
+  }
+}

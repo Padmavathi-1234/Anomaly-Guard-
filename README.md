@@ -316,10 +316,22 @@ Guaranteed by `random.Random(seed)` throughout `scenarios.py` with no global sta
 
 ## 🎬 Run the Demo
 
+### 1. Run the Python Demo
+
 See the environment in action with one command:
 
 ```bash
 python demo.py
+```
+
+### 2. Demo Endpoints
+
+```bash
+# Demo anti-hacking detection
+curl -X POST "http://localhost:7860/demo/anti-hacking"
+
+# Demo realistic scenario generation
+curl -X POST "http://localhost:7860/demo/realistic-scenario"
 ```
 
 **Sample output:**
@@ -412,6 +424,27 @@ AVERAGE:            0.7874
 | `/compliance/audit` | GET    | 5-check EU AI Act audit report |
 | `/compliance/trail` | GET    | Full action audit trail        |
 
+### Multi-Agent
+
+| Endpoint              | Method | Description                         |
+| --------------------- | ------ | ----------------------------------- |
+| `/reset-multiagent`   | POST   | Start multi-agent episode           |
+| `/step-multiagent`    | POST   | Execute multi-agent step            |
+
+### Threat Intelligence & Business
+
+| Endpoint                | Method | Description                         |
+| ----------------------- | ------ | ----------------------------------- |
+| `/threat-intel/live`    | GET    | Fetch live threat intelligence      |
+| `/business-impact/roi`  | GET    | Calculate ROI of agent performance  |
+
+### Security & Anti-Hacking
+
+| Endpoint                               | Method | Description                         |
+| -------------------------------------- | ------ | ----------------------------------- |
+| `/anti-hacking/report`                 | GET    | View cheating detection report      |
+| `/anti-hacking/test/{exploit_type}`    | POST   | Test specific exploit detection     |
+
 ---
 
 ## ⚙️ Quick Start
@@ -438,6 +471,18 @@ export MODEL_NAME="gpt-4o-mini"
 export HF_TOKEN="your-api-key"
 export ENV_URL="http://localhost:7860"
 python inference.py
+```
+
+### Training Models
+
+To train an agent using GRPO with Unsloth:
+```bash
+python training/train_grpo.py
+```
+
+To run adversarial co-evolution training:
+```bash
+python training/train_coevolution.py
 ```
 
 ---

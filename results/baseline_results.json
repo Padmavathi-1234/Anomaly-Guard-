@@ -1,0 +1,42 @@
+{
+  "mode": "baseline",
+  "label": "Baseline (Before Training)",
+  "metrics": {
+    "prevention_rate": 0.12,
+    "avg_detection_step": 14.2,
+    "avg_reward": 0.08,
+    "coordination_score": 0.15,
+    "compliance_score": 0.31,
+    "containment_rate": 0.18,
+    "false_positive_rate": 0.82,
+    "precision": 0.21,
+    "recall": 0.19,
+    "f1_score": 0.20
+  },
+  "tasks": {
+    "alert_triage": {"score": 0.09, "steps": 15},
+    "incident_containment": {"score": 0.07, "steps": 20},
+    "full_incident_response": {"score": 0.06, "steps": 30}
+  },
+  "curriculum": {
+    "level": 1,
+    "name": "Beginner",
+    "episodes": 0,
+    "promotions": 0
+  },
+  "compliance": {
+    "explanation_quality": 0.25,
+    "human_oversight": 0.30,
+    "bias_detection": 0.40,
+    "decision_traceability": 0.20,
+    "risk_proportionality": 0.35
+  },
+  "roi": {
+    "total_annual_value": 245000,
+    "detection_speed_savings": 85000,
+    "prevention_value": 120000,
+    "false_positive_savings": 15000,
+    "labor_cost_savings": 25000,
+    "payback_period_months": 11.2
+  }
+}

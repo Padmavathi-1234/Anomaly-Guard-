@@ -11,6 +11,7 @@ from typing import List, Dict
 from trl import GRPOConfig, GRPOTrainer
 from unsloth import FastLanguageModel
 from app.core.environment_multiagent import MultiAgentAnomalyGuard
+from datasets import Dataset
 
 # Import from your scenarios folder
 from app.scenarios.realistic_attacks import RealisticScenarioGenerator
@@ -46,6 +47,26 @@ model = FastLanguageModel.get_peft_model(
 )
 
 print("✅ Setup Complete! Starting Training...\n")
+
+# Create a dummy dataset to satisfy GRPOTrainer's requirements
+dummy_prompts = [
+    "You are an AI cybersecurity agent. Analyze the observation and respond with the best action.",
+    "You are a cybersecurity incident responder. Based on the observation, determine the optimal action.",
+    "As a security analyst, examine the observation and decide on the most appropriate action."
+]
+dummy_dataset = Dataset.from_list([{"prompt": p} for p in dummy_prompts])
+
+# ====================== REWARD FUNCTION ======================
+def reward_func(completions, **kwargs):
+    rewards = []
+    for completion in completions:
+        score = 1.0
+        if "action_type" in str(completion):
+            score += 1.0
+        if "justification" in str(completion):
+            score += 0.5
+        rewards.append(score)
+    return rewards
 
 # ====================== ROLLOUT FUNCTION ======================
 def rollout_function(prompts: List[str]) -> List[Dict]:
@@ -137,6 +158,8 @@ trainer = GRPOTrainer(
     model=model,
     args=config,
     tokenizer=tokenizer,
+    reward_funcs=[reward_func],       # Added this
+    train_dataset=dummy_dataset,      # Added this
     rollout_function=rollout_function,
 )
 

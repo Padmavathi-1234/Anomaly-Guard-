@@ -34,16 +34,22 @@ tasks:
     target_score: 0.40
 
 reward:
-  formula: "action_correctness * 0.60 + explanation_quality * 0.40"
-  action_weight: 0.60
-  explanation_weight: 0.40
-  range: [-1.0, 1.0]
+  formula: "weighted_sum(action_correctness, explanation_quality, time_efficiency, prevention_bonus, investigation_depth) + anti_hacking_penalty"
   components:
-    - action_correctness: correctness of IR decision
-    - explanation_quality: quality of ActionJustification
-    - progress_bonus: milestone completion rewards
-    - spread_penalty: penalty for malware propagation
-    - step_cost: -0.01 per step to discourage stalling
+    - action_correctness: "0.40 — sparse reward for correct IR decisions"
+    - explanation_quality: "0.30 — quality of ActionJustification reasoning"
+    - time_efficiency: "0.10 — pressure to act quickly"
+    - prevention_bonus: "0.10 — reward for early threat containment"
+    - investigation_depth: "0.10 — reward for investigating before acting"
+    - step_cost: "-0.01 per step to discourage stalling"
+    - anti_hacking_penalty: "applied when repetitive/exploitative patterns detected"
+  range: [-1.0, 1.0]
+  anti_hacking:
+    - weight_jitter: "±3% randomized weights per step"
+    - repetitive_pattern_detection: "penalizes same action type 5x in a row"
+    - reward_farming_detection: "penalizes monitor/forensics spam"
+    - state_exploitation_detection: "penalizes over-targeting same entity"
+    - red_herring_alerts: "benign alerts that should be ignored"
 
 termination:
   terminated_conditions:
@@ -138,6 +144,15 @@ innovation:
   - "Deterministic reproducibility — same seed always produces identical scenario"
   - "Evidence validation against actual observations in grader"
   - "Multi-phase IR workflow — detection, containment, eradication, recovery"
+  # ── Enhancement Roadmap v2 ──
+  - "Multi-component sparse reward: 5 independent scored dimensions"
+  - "Anti-hacking countermeasures: weight jitter, pattern detection, farming detection"
+  - "Red herring alert injection: benign alerts that penalize false positives"
+  - "Procedural attack generator: 7 archetypes with MITRE ATT&CK technique chains"
+  - "Network topology randomizer: 8 segment types with inter-segment firewall rules"
+  - "Adversarial evaluation suite: 5 robustness tests (distraction, evasion, etc.)"
+  - "EU AI Act compliance evaluator: 5-dimension scoring with improvement recommendations"
+  - "Investigation-before-action reward: penalizes containment without prior query_host"
 
 grading:
   task_1: "triage_accuracy * 0.70 + avg_explanation * 0.30"

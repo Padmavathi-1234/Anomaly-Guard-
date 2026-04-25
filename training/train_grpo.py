@@ -1,26 +1,32 @@
 """
-Optimized RL Post-Training for Hugging Face Credits
-===================================================
-Optimized for speed and stability on A100/H100 GPUs
+AnomalyGuard - GRPO Training (Final Version for Hackathon)
+Uses your own realistic_attacks.py, scenario_base.py and threat_live.py
 """
 
 import torch
+import random
+import re
+import json
+from typing import List, Dict
 from trl import GRPOConfig, GRPOTrainer
 from unsloth import FastLanguageModel
-import openenv
 from app.core.environment_multiagent import MultiAgentAnomalyGuard
-from typing import List, Dict
+
+# Import from your scenarios folder
+from app.scenarios.realistic_attacks import RealisticScenarioGenerator
+from app.scenarios.threat_live import LiveThreatIntel
 
 # ====================== CONFIG ======================
-MODEL_NAME = "unsloth/Meta-Llama-3.1-8B-Instruct"
-MAX_SEQ_LENGTH = 4096
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATION = 4
-LEARNING_RATE = 5e-6
-EPOCHS = 2
-MAX_STEPS = 1000          # Safety limit
+MODEL_NAME = "unsloth/Llama-3.2-1B-Instruct"
+MAX_SEQ_LENGTH = 2048
+MAX_STEPS = 100                    # Safe for 24h hackathon on T4
+BATCH_SIZE = 2
 
-print("Loading environment...")
+print("Loading your Realistic Scenario Generator...")
+scenario_generator = RealisticScenarioGenerator()
+threat_intel = LiveThreatIntel()
+
+print("Initializing AnomalyGuard Environment...")
 env = MultiAgentAnomalyGuard(use_realistic=True)
 
 print(f"Loading model: {MODEL_NAME}")
@@ -39,80 +45,92 @@ model = FastLanguageModel.get_peft_model(
     lora_dropout=0.05,
 )
 
-print("Model loaded!")
+print("✅ Setup Complete! Starting Training...\n")
 
-# ====================== ROLLOUT ======================
+# ====================== ROLLOUT FUNCTION ======================
 def rollout_function(prompts: List[str]) -> List[Dict]:
     trajectories = []
     
     for prompt in prompts:
-        obs, info = env.reset(task_id=3, seed=None)
+        # Generate fresh realistic scenario using YOUR generator
+        scenario = scenario_generator.generate(
+            difficulty=random.uniform(0.5, 0.85),
+            seed=random.randint(10000, 999999),
+            curriculum_level=random.randint(2, 6)
+        )
+        
+        # Add live threat intel
+        scenario = threat_intel.inject_into_scenario(scenario)
+        
+        obs = scenario.get("initial_state", {})
         done = False
         episode_reward = 0
         steps = 0
-        
-        while not done and steps < 60:
-            # Generate action from model
-            full_prompt = f"{prompt}\nObservation: {obs}\nAction:"
-            inputs = tokenizer(full_prompt, return_tensors="pt").to(model.device)
+        response = ""
+
+        while not done and steps < 25:
+            full_prompt = f"""{prompt}
+Scenario: {scenario.get('name', 'Unknown Cyber Attack')}
+Observation: {json.dumps(obs, indent=2)}
+Action:"""
             
+            inputs = tokenizer(full_prompt, return_tensors="pt").to("cuda")
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=512,
+                max_new_tokens=256,
                 temperature=0.7,
-                do_sample=True
+                do_sample=True,
+                top_p=0.9
             )
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Parse action
             action = parse_action(response)
-            
-            # Step environment
             obs, reward, terminated, truncated, info = env.step(action)
+            
             episode_reward += reward
             steps += 1
             
             if terminated or truncated:
                 break
-        
+
         trajectories.append({
-            "prompt": prompt,
+            "prompt": f"{prompt}\nScenario: {scenario.get('name')}",
             "response": response,
-            "reward": episode_reward
+            "reward": episode_reward,
+            "scenario": scenario.get('name', 'Unknown')
         })
     
     return trajectories
 
+
 def parse_action(response: str) -> Dict:
-    import re, json
     try:
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        json_match = re.search(r'\{.*?\}', response, re.DOTALL)
         if json_match:
             action = json.loads(json_match.group())
-            if "action_type" in action:
+            if isinstance(action, dict) and "action_type" in action:
                 return action
     except:
         pass
     return {
         "action_type": "query_host",
         "target_id": "host-01",
-        "justification": {"reasoning": "Default action"}
+        "justification": {"reasoning": "Default safe investigation"}
     }
 
-# ====================== START TRAINING ======================
-print("Starting RL Post-Training...")
+
+# ====================== TRAINING ======================
+print("Starting GRPO Training with your realistic dynamic scenarios...")
 
 config = GRPOConfig(
     output_dir="./checkpoints",
-    num_train_epochs=EPOCHS,
     per_device_train_batch_size=BATCH_SIZE,
-    gradient_accumulation_steps=GRADIENT_ACCUMULATION,
-    learning_rate=LEARNING_RATE,
-    logging_steps=20,
-    save_steps=200,
+    gradient_accumulation_steps=4,
+    learning_rate=5e-6,
+    logging_steps=10,
     max_steps=MAX_STEPS,
-    evaluation_strategy="steps",
-    eval_steps=200,
+    optim="adamw_8bit",
+    report_to="none",
 )
 
 trainer = GRPOTrainer(
@@ -124,9 +142,9 @@ trainer = GRPOTrainer(
 
 trainer.train()
 
-# Save final model
-model.save_pretrained("./anomalyguard-trained-final")
-tokenizer.save_pretrained("./anomalyguard-trained-final")
+model.save_pretrained("./anomalyguard-grpo-final")
+tokenizer.save_pretrained("./anomalyguard-grpo-final")
 
-print("\n✅ Training Completed!")
-print("Model saved to: ./anomalyguard-trained-final")
+print("\n🎉 TRAINING COMPLETED!")
+print("Model saved to: ./anomalyguard-grpo-final")
+print("Now create reward plots and update your README.md")

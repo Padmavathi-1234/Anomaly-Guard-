@@ -114,6 +114,8 @@ from .models import (
 from .scenarios import build_scenario
 from .explainability import score_justification
 from .grader import grade_episode
+from .rewards.reward_calculator import MultiComponentRewardCalculator
+from .rewards.anti_hacking import AntiHackingGuard
 
 
 class AnomalyGuardEnvironment(OpenEnvBase):
@@ -154,6 +156,14 @@ class AnomalyGuardEnvironment(OpenEnvBase):
         self._infected_hosts = set()
         self._spread_probability = 0.3
         self._spread_history = []
+
+        # ===== ADVANCED REWARD SYSTEM =====
+        self._reward_calculator = MultiComponentRewardCalculator(
+            jitter_enabled=True, jitter_magnitude=0.03
+        )
+        self._anti_hacking = AntiHackingGuard(
+            repetition_window=5, repetition_penalty=0.8
+        )
 
         # Partial observability tracking
         self._queried_hosts: set = set()   # NEW - tracks which hosts agent has investigated
@@ -274,6 +284,10 @@ class AnomalyGuardEnvironment(OpenEnvBase):
 
         self._total_episodes += 1
         self._last_episode_score = None
+
+        # Reset advanced reward system
+        self._reward_calculator.reset(seed=seed)
+        self._anti_hacking.reset()
 
         return self._build_masked_observation(max_steps), {}
 
@@ -411,6 +425,52 @@ class AnomalyGuardEnvironment(OpenEnvBase):
             grader_result = grade_episode(self._state, task_id)
             self._last_episode_score = grader_result.final_score
 
+        # ── Multi-component reward (advanced, parallel to base) ─────────
+        action_type_str = (action.action_type.value
+                           if hasattr(action.action_type, "value")
+                           else action.action_type)
+
+        # Check threat containment for prevention bonus
+        compromised_hosts = [
+            h for h in self._state["hosts"]
+            if getattr(h, "c2_active", False) or bool(getattr(h, "persistence", []))
+        ]
+        isolated_set = self._state.get("isolated", set())
+        threat_contained = (
+            len(compromised_hosts) > 0
+            and all(h.host_id in isolated_set for h in compromised_hosts)
+        )
+        containment_step = self._step_count if threat_contained else None
+
+        mc_reward, mc_breakdown = self._reward_calculator.calculate(
+            action_result=action_result,
+            xai_scores=xai_scores,
+            step=self._step_count,
+            max_steps=max_steps,
+            threat_contained=threat_contained,
+            containment_step=containment_step,
+            queried_hosts=len(self._queried_hosts),
+            total_hosts=len(self._state["hosts"]),
+            action_type=action_type_str,
+            action_history=self._state["action_history"],
+        )
+
+        # Anti-hacking check
+        hacking_detected, hacking_penalty, hacking_details = self._anti_hacking.check(
+            action_history=self._state["action_history"],
+            current_action={
+                "action_type": action_type_str,
+                "target": action.target,
+            },
+            state=self._state,
+        )
+
+        # Apply anti-hacking penalty to reward
+        if hacking_detected:
+            reward_value = max(-1.0, reward_value + hacking_penalty)
+            self._state["total_reward"] = sum(self._episode_rewards) + reward_value - self._episode_rewards[-1]
+            self._episode_rewards[-1] = reward_value
+
         # Build observation with partial observability applied
         obs = self._build_masked_observation(max_steps)
 
@@ -420,16 +480,14 @@ class AnomalyGuardEnvironment(OpenEnvBase):
             "step":               self._step_count,
             "max_steps":          max_steps,
             "total_reward":       round(self._state["total_reward"], 4),
-            "action_type":        (action.action_type.value
-                                   if hasattr(action.action_type, "value")
-                                   else action.action_type),
+            "action_type":        action_type_str,
             "phase":              (self._state["phase"].value
                                    if hasattr(self._state["phase"], "value")
                                    else str(self._state["phase"])),
-            "termination_reason": termination_reason,   # NEW
-            "progress_bonus":     progress_bonus,        # NEW
-            "new_infections":     new_infections,        # NEW
-            "queried_hosts":      list(self._queried_hosts),  # NEW
+            "termination_reason": termination_reason,
+            "progress_bonus":     progress_bonus,
+            "new_infections":     new_infections,
+            "queried_hosts":      list(self._queried_hosts),
             "reward_breakdown": {
                 "base_reward":          round(base_reward, 4),
                 "action_correctness":   round(action_score, 4),
@@ -443,6 +501,9 @@ class AnomalyGuardEnvironment(OpenEnvBase):
                 "final_reward":         round(reward_value, 4),
                 "message":              action_result.get("message", ""),
             },
+            # ── Advanced reward system outputs ──
+            "multi_component_reward": mc_breakdown,
+            "anti_hacking": hacking_details,
         }
 
         return obs, float(reward_value), terminated, truncated, info

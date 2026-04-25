@@ -14,3 +14,4 @@ trl>=0.8.0
 unsloth @ git+https://github.com/unslothai/unsloth.git
 peft
 datasets
+gradio>=4.0.0  # Added for HF Space

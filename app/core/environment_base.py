@@ -1,6 +1,15 @@
 import copy
 from typing import Tuple, Dict, Optional, Any
-from openenv.core import Environment as Env
+try:
+    from openenv.env.env import Env
+except ImportError:
+    try:
+        from openenv.core import Environment as Env
+    except ImportError:
+        class Env:
+            def __init__(self, **kwargs): pass
+            def reset(self, *args, **kwargs): pass
+            def step(self, *args, **kwargs): pass
 from app.scenarios.scenario_base import generate_basic_scenario
 from app.grading.grader_robust import RobustGrader
 

@@ -103,7 +103,7 @@ risk assessment, and alternative analysis.
 > at the reward level. Non-compliant actions receive lower scores.
 
 **Core Reward Formula:**
-Reward = action_correctness × 0.60 + explanation_quality × 0.40
+Reward = `weighted_sum(action_correctness, explanation_quality, time_efficiency, prevention_bonus, investigation_depth) + anti_hacking_penalty`
 
 ---
 
@@ -114,8 +114,10 @@ Reward = action_correctness × 0.60 + explanation_quality × 0.40
 | Action justification required | ✅ Mandatory       | ❌ None            |
 | EU AI Act compliance engine   | ✅ Built-in        | ❌ None            |
 | Partial observability         | ✅ Query-based     | ❌ Full visibility |
-| MITRE ATT&CK integration      | ✅ Real techniques | ❌ Abstract        |
+| MITRE ATT&CK integration      | ✅ Procedural Gen  | ❌ Abstract        |
 | Malware spread simulation     | ✅ Topology-based  | ❌ Static          |
+| Anti-hacking protection       | ✅ Multi-layer     | ❌ None            |
+| Adversarial testing suite     | ✅ Built-in        | ❌ Ad-hoc          |
 | Adaptive curriculum           | ✅ 10 levels       | ❌ Fixed           |
 | Dense progress rewards        | ✅ Milestone-based | ❌ Sparse          |
 
@@ -131,14 +133,17 @@ Reward = action_correctness × 0.60 + explanation_quality × 0.40
 - 🔄 **Deterministic Reproducibility**: Same seed + task always produces identical scenario
 - 🤖 **OpenEnv Compatible**: Fully extends `openenv.env.env.Env` base class
 
-### Advanced Features
+### Advanced Features & Enhancements
 
-- 🦠 **Malware Spread Simulation**: Topology-based propagation across enterprise network graph
-- 📈 **Adaptive Curriculum Learning**: 10-level difficulty auto-adjusts based on agent performance
-- 🔗 **Strict Task Dependencies**: Realistic IR workflow — detect → contain → eradicate → recover
-- 🕵️ **Partial Observability**: Host details hidden until agent uses `query_host` action
-- 🏆 **Dense Progress Rewards**: Milestone bonuses with correct `terminated` vs `truncated` separation
-- ⚖️ **EU AI Act Compliance Engine**: 5-check audit against Articles 10, 13, 14
+- 🛡️ **Anti-Hacking Guard**: Detects and penalizes repetitive patterns, state exploitation, and reward farming; injects red herring alerts.
+- 🎲 **Procedural Attack Generator**: 7 attack archetypes with dependency-resolved MITRE ATT&CK technique chains and causal timelines.
+- 🌐 **Network Topology Randomizer**: 8 network segment types (DMZ, Corp, Prod, etc.) with inter-segment firewall rules and dynamic vulnerabilities.
+- 🦠 **Malware Spread Simulation**: Topology-based propagation across the enterprise network graph.
+- 📈 **Adaptive Curriculum Learning**: 10-level difficulty auto-adjusts based on agent performance.
+- 🔗 **Strict Task Dependencies**: Realistic IR workflow — detect → contain → eradicate → recover.
+- 🕵️ **Partial Observability**: Host details hidden until agent uses `query_host` action.
+- ⚖️ **EU AI Act Compliance Evaluator**: 5-dimension scoring (Transparency, Human Oversight, Bias, Traceability, Proportionality) with improvement recommendations.
+- ⚔️ **Adversarial Evaluation Suite**: 5 robustness tests including distraction, false positives, evasion, subtle attacks, and multi-stage testing.
 
 ---
 
@@ -298,6 +303,16 @@ curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
 > ✅ **Rule-based agent exceeds RL target (0.79 > 0.75)** — demonstrates environment provides strong, learnable reward signal.
 
 **Note on Task 3:** The rule-based agent times out because it lacks the logic for eradication (remove_persistence) and recovery (restore_host) phases. A trained RL agent or LLM agent would learn these patterns and complete the full IR lifecycle.
+
+---
+
+## 🤖 GRPO Training & Synthetic Data
+
+AnomalyGuard includes a robust training pipeline (`training/train_grpo.py`) leveraging **GRPO (Group Relative Policy Optimization)** for alignment. 
+
+- **Synthetic Dataset Generation:** Automatically generates supervised training data from the procedural scenarios, mapping perfect observations to justifiable actions.
+- **Multi-Component Reward Function:** Incorporates format compliance, justification quality, decision quality, and anti-hacking penalties with randomized weights to prevent reward gaming.
+- **Reward Tracking & Plotting:** Outputs a visual progress curve (`reward_plot.png`) demonstrating the agent's improvement over the rule-based baseline.
 
 ---
 

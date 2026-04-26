@@ -13,516 +13,245 @@ tags:
   - incident-response
   - explainable-ai
   - curriculum-learning
+  - eu-ai-act
+  - multi-agent
+  - grpo
 ---
 
-# AnomalyGuard — EU AI Act Compliant RL Environment for Cybersecurity
-### The only OpenEnv environment with mandatory action justification and built-in regulatory compliance
+# AnomalyGuard
+### An RL Environment That Trains AI to Think Like a Cybersecurity Analyst
 
 [![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-blue)](https://github.com/openenv)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-green)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Hackathon](https://img.shields.io/badge/Meta%20OpenEnv-Hackathon-orange)](https://scaler.com)
-[![Validate](https://img.shields.io/badge/openenv%20validate-PASSED-brightgreen)](https://padmavathi-123-anomalyguard.hf.space)
-
-## ✅ Validation Status
-
-```
-openenv validate  → [OK] Ready for multi-mode deployment
-Reproducibility   → Verified (same seed = identical scenario)
-Partial Obs       → Verified (query_host reveals hidden state)
-Termination       → Verified (terminated vs truncated correct)
-Grader            → Deterministic (no random, no time-based logic)
-Deployment        → Live on Hugging Face Spaces
-```
+[![Hackathon](https://img.shields.io/badge/OpenEnv-Hackathon%202026-orange)](https://scaler.com)
+[![Space](https://img.shields.io/badge/HuggingFace-Live-brightgreen)](https://padmavathi-123-anomalyguard.hf.space)
 
 ---
 
-## 🚀 Live Demo
+## Why This Exists
 
-**Try it now:** [https://padmavathi-123-anomalyguard.hf.space](https://padmavathi-123-anomalyguard.hf.space)
+AI is everywhere now. In hospitals. In banks.
+In the systems that run power grids and financial markets.
+And wherever AI goes, attackers follow.
 
-**Interactive API Docs:** [https://padmavathi-123-anomalyguard.hf.space/docs](https://padmavathi-123-anomalyguard.hf.space/docs)
+Security teams today receive thousands of alerts per day.
+They cannot investigate all of them fast enough.
+One missed alert, one wrong classification,
+one moment of hesitation can mean the difference
+between containing a breach in an hour and losing
+customer data for months.
 
-**GitHub:** [https://github.com/Padmavathi-1234/Anomaly-Guard-](https://github.com/Padmavathi-1234/Anomaly-Guard-)
+When I saw how fast cyber attacks were growing and
+when the Vercel breach happened, I realized the
+problem was not that security teams did not know
+what to do. The problem was that there were too many
+alerts, too little time, and too much noise to filter
+through manually.
+
+I wanted to build an AI that does not just detect.
+That investigates. That explains its work.
+That a human analyst can actually supervise and trust.
+
+That became AnomalyGuard.
 
 ---
 
-## ⚡ Test It Right Now
+## What It Does
 
-**Step 1 — Start an episode:**
+AnomalyGuard is an OpenEnv reinforcement learning
+environment where an LLM learns to act as a
+Security Operations Center analyst.
+
+The agent receives real SIEM alerts and must work
+through a complete incident response lifecycle —
+investigating hosts, classifying alerts, isolating
+compromised systems, removing persistence mechanisms,
+and restoring clean hosts to production.
+
+Every action must be justified with specific evidence.
+The agent cannot simply isolate a host. It must explain
+which alert triggered the decision, what it found when
+it queried the host, why it chose this action over
+alternatives, and what the risk assessment was.
+
+This is enforced at the reward level.
+Unjustified actions receive lower scores.
+This is how EU AI Act compliance is built into
+the training signal itself.
+
+---
+
+## Links
+
+| Resource | URL |
+|----------|-----|
+| Live Environment | https://padmavathi-123-anomalyguard.hf.space |
+| API Docs | https://padmavathi-123-anomalyguard.hf.space/docs |
+| GitHub | https://github.com/Padmavathi-1234/Anomaly-Guard- |
+| Blog Post | YOUR_BLOG_URL |
+| Demo Video | YOUR_VIDEO_URL |
+
+---
+
+## Try It Right Now
+
+Start an investigation:
 
 ```bash
-curl -X POST "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
-```
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
+Take an action:
 
-**Step 2 — Take an action with full justification:**
+Bash
 
-```bash
-curl -X POST "https://padmavathi-123-anomalyguard.hf.space/step" \
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/step" \
   -H "Content-Type: application/json" \
   -d '{
     "action_type": "triage_alert",
     "target": "ALT-10001",
     "parameters": {"classification": "true_positive"},
     "justification": {
-      "reasoning": "Alert ALT-10001 shows C2 beacon pattern with confidence 0.89 matching known malicious IP in threat intel. MITRE T1071 technique confirms command and control communication.",
-      "evidence": [{"source": "ALT-10001", "content": "C2 beacon to 185.220.101.45 confidence 0.89", "relevance_score": 0.95}],
-      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 channel allows attacker persistence", "business_disruption_estimate": "High — active breach ongoing"},
-      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 is too high to ignore without classification"}]
+      "reasoning": "Alert ALT-10001 shows C2 beacon to 185.220.101.45 confidence 0.89. MITRE T1071 confirms active command and control requiring immediate classification.",
+      "evidence": [{"source": "ALT-10001", "content": "C2 beacon detected", "relevance_score": 0.95}],
+      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 allows attacker persistence", "business_disruption_estimate": "High"},
+      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 too high to ignore"}]
     }
   }'
-```
+Check EU AI Act compliance:
 
-**Step 3 — Check EU AI Act compliance:**
+Bash
 
-```bash
 curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
-```
+Training Results
+The model was trained using GRPO (Group Relative
+Policy Optimization) with dynamic step selection
+based on curriculum complexity.
+What Makes This Different
+Feature	AnomalyGuard	Typical RL Env
+Action justification required	Mandatory	None
+EU AI Act compliance engine	Built-in	None
+Partial observability	Query-based	Full visibility
+MITRE ATT&CK integration	Real techniques	Abstract
+Malware spread simulation	Topology-based	Static
+Anti-hacking protection	Multi-layer	None
+Adaptive curriculum	10 levels	Fixed
+Multi-agent architecture	3 roles	Single agent
+The Design
+Partial Observability
+Host details are hidden until the agent calls
+query_host. An agent that isolates a host without
+investigating first gets penalized. This forces
+strategic investigation over blind action-taking,
+mirroring how real SOC analysts work.
+
+Three Coordinated Agents
+Agent	Responsibility
+Triage Agent	Classifies alerts as true or false positives
+Containment Agent	Isolates hosts and blocks malicious IPs
+Forensics Agent	Removes persistence and restores systems
+Agents cannot act out of order. Triage before
+containment. Containment before eradication.
+Eradication before recovery.
+
+Adaptive Curriculum
+The environment watches agent performance and
+adjusts difficulty automatically. When success
+exceeds 75 percent it advances. Below 35 percent
+it regresses. Training steps scale with complexity —
+50 steps for beginners, 300 for expert scenarios.
+
+Real Attack Scenarios
+Every scenario uses real MITRE ATT&CK techniques.
+The IP 185.220.101.45 in training data is a real
+known malicious IP linked to ransomware campaigns.
+
+EU AI Act Compliance
+Every episode generates a 5-check compliance audit.
+
+Check	Article	Validates
+All actions justified	14.4(b)	reasoning >= 50 chars
+Explanation quality	13.1	avg score >= 0.60
+Human oversight	14.1	escalate always available
+High-risk documented	14.4(c)	isolate/disable justified
+No bias	10.2(f)	TP/FP ratio balanced
+No other OpenEnv environment enforces regulatory
+compliance at the reward level.
+
+Validation
+text
+
+openenv validate  -> [OK] Ready for multi-mode deployment
+Reproducibility   -> Verified (same seed = identical scenario)
+Partial Obs       -> Verified (query_host reveals hidden state)
+Termination       -> Verified (terminated vs truncated correct)
+Grader            -> Deterministic (no random, no time-based logic)
+Deployment        -> Live on Hugging Face Spaces
+API Reference
+Core
+Endpoint	Method	Description
+/health	GET	Health check
+/reset	POST	Start new episode
+/step	POST	Execute action
+/state	GET	Current observation
+/grader	POST	Grade episode
+Training
+Endpoint	Method	Description
+/train/start	POST	Start GRPO training
+/train/status	GET	Check progress
+/train/logs	GET	Full training logs
+/train/plot	GET	Download reward curve
+Compliance
+Endpoint	Method	Description
+/compliance/audit	GET	EU AI Act audit
+/compliance/trail	GET	Action audit trail
+/compliance/dashboard	GET	Compliance metrics
+Multi-Agent
+Endpoint	Method	Description
+/reset-multiagent	POST	Start multi-agent episode
+/step-multiagent	POST	Execute multi-agent step
+/curriculum/status	GET	Current level
+/anti-hacking/report	GET	Cheating detection
+/threat-intel/live	GET	Live IOCs
+Local Setup
+Bash
 
-**Step 4 — View detailed metrics:**
-
-```bash
-curl "https://padmavathi-123-anomalyguard.hf.space/metrics/detailed"
-```
-
-**Interactive API (easiest):** [https://padmavathi-123-anomalyguard.hf.space/docs](https://padmavathi-123-anomalyguard.hf.space/docs)
-
----
-
-## Overview
-
-AnomalyGuard is the **first OpenEnv reinforcement learning environment
-requiring agents to JUSTIFY every action** with evidence-based reasoning,
-risk assessment, and alternative analysis.
-
-> ### 🇪🇺 EU AI Act Compliance — Built Into the Environment
-> AnomalyGuard is the **only OpenEnv environment** designed around
-> EU AI Act Articles 10, 13, and 14. Every episode automatically
-> generates a 5-check compliance audit. Every action requires
-> structured justification. This is not optional — it is enforced
-> at the reward level. Non-compliant actions receive lower scores.
-
-**Core Reward Formula:**
-Reward = `weighted_sum(action_correctness, explanation_quality, time_efficiency, prevention_bonus, investigation_depth) + anti_hacking_penalty`
-
----
-
-## 🏆 Key Differentiators
-
-| Feature                       | AnomalyGuard       | Typical RL Env     |
-| ----------------------------- | ------------------ | ------------------ |
-| Action justification required | ✅ Mandatory       | ❌ None            |
-| EU AI Act compliance engine   | ✅ Built-in        | ❌ None            |
-| Partial observability         | ✅ Query-based     | ❌ Full visibility |
-| MITRE ATT&CK integration      | ✅ Procedural Gen  | ❌ Abstract        |
-| Malware spread simulation     | ✅ Topology-based  | ❌ Static          |
-| Anti-hacking protection       | ✅ Multi-layer     | ❌ None            |
-| Adversarial testing suite     | ✅ Built-in        | ❌ Ad-hoc          |
-| Adaptive curriculum           | ✅ 10 levels       | ❌ Fixed           |
-| Dense progress rewards        | ✅ Milestone-based | ❌ Sparse          |
-
----
-
-## 🚀 Key Features
-
-### Core Capabilities
-
-- 🔍 **Evidence-Based Reasoning**: Every action requires citing specific alert IDs, host IDs, CVEs, and MITRE techniques
-- 🎯 **MITRE ATT&CK Integration**: 8 real-world attack patterns with genuine IOCs, file hashes, and C2 IPs
-- 📊 **Multi-Dimensional Grading**: Scoring across action correctness, reasoning clarity, evidence validity, risk accuracy
-- 🔄 **Deterministic Reproducibility**: Same seed + task always produces identical scenario
-- 🤖 **OpenEnv Compatible**: Fully extends `openenv.env.env.Env` base class
-
-### Advanced Features & Enhancements
-
-- 🛡️ **Anti-Hacking Guard**: Detects and penalizes repetitive patterns, state exploitation, and reward farming; injects red herring alerts.
-- 🎲 **Procedural Attack Generator**: 7 attack archetypes with dependency-resolved MITRE ATT&CK technique chains and causal timelines.
-- 🌐 **Network Topology Randomizer**: 8 network segment types (DMZ, Corp, Prod, etc.) with inter-segment firewall rules and dynamic vulnerabilities.
-- 🦠 **Malware Spread Simulation**: Topology-based propagation across the enterprise network graph.
-- 📈 **Adaptive Curriculum Learning**: 10-level difficulty auto-adjusts based on agent performance.
-- 🔗 **Strict Task Dependencies**: Realistic IR workflow — detect → contain → eradicate → recover.
-- 🕵️ **Partial Observability**: Host details hidden until agent uses `query_host` action.
-- ⚖️ **EU AI Act Compliance Evaluator**: 5-dimension scoring (Transparency, Human Oversight, Bias, Traceability, Proportionality) with improvement recommendations.
-- ⚔️ **Adversarial Evaluation Suite**: 5 robustness tests including distraction, false positives, evasion, subtle attacks, and multi-stage testing.
-
----
-
-## 🏗️ Architecture
-
-```text
-anomalyguard/
-├── app/
-│   ├── main.py              # FastAPI — OpenEnv HTTP interface
-│   ├── models.py            # Pydantic v2 models
-│   ├── environment.py       # Core RL environment (extends openenv.env.env.Env)
-│   ├── grader.py            # Deterministic grader (0.0–1.0)
-│   ├── scenarios.py         # MITRE ATT&CK reproducible scenario generator
-│   ├── explainability.py    # Explanation quality scorer
-│   ├── real_data.py         # Attack patterns, CVEs, IOCs database
-│   └── baseline.py          # RandomAgent + RuleBasedAgent
-├── tests/
-│   └── test_environment.py  # pytest validation suite
-├── inference.py             # LLM agent example
-├── Dockerfile
-├── requirements.txt
-├── openenv.yaml
-└── README.md
-```
-
----
-
-## 📋 Observation Space
-
-### What the Agent Sees
-
-```python
-{
-    "task_id":           int,          # 1, 2, or 3
-    "step":              int,          # Current step (0 to max_steps)
-    "max_steps":         int,          # 15 / 20 / 30 depending on task
-    "alerts":            List[Alert],  # SIEM alerts (is_true_positive HIDDEN)
-    "hosts":             List[Host],   # Network hosts (details MASKED until queried)
-    "incident_phase":    str,          # detection/containment/eradication/recovery
-    "time_remaining":    int,          # Steps left in episode
-    "available_actions": List[str],    # Valid action types for current task
-    "score_so_far":      float,        # Running score estimate
-    "threat_intel":      ThreatIntel,  # IOCs, malicious IPs, CVEs
-}
-```
-
-### Partial Observability — Host Masking
-
-Hosts show limited information until investigated with `query_host`:
-
-| Field                         | Before `query_host`      | After `query_host` |
-| ----------------------------- | ------------------------ | ------------------ |
-| host_id, hostname, ip_address | ✅ Visible               | ✅ Visible         |
-| role, criticality, services   | ✅ Visible               | ✅ Visible         |
-| c2_active                     | ❌ Hidden (shows False)  | ✅ Revealed        |
-| persistence                   | ❌ Hidden (shows [])     | ✅ Revealed        |
-| vulnerabilities               | ❌ Hidden (shows [])     | ✅ Revealed        |
-| accounts                      | ❌ Hidden (shows [])     | ✅ Revealed        |
-| status                        | ❌ Hidden (shows online) | ✅ Revealed        |
-
-**Why this matters:** Agents must investigate before acting — mirrors real SOC analyst workflow.
-
----
-
-## 🎯 Task Hierarchy (Curriculum)
-
-| ID  | Name                   | Difficulty | Max Steps | Objective                                                     |
-| --- | ---------------------- | ---------- | --------- | ------------------------------------------------------------- |
-| 1   | Alert Triage           | Easy       | 15        | Classify 6-10 SIEM alerts as TP/FP with justification         |
-| 2   | Incident Containment   | Medium     | 20        | Contain active breach across 10-15 hosts                      |
-| 3   | Full Incident Response | Hard       | 30        | Complete IR lifecycle: detect → contain → eradicate → recover |
-
-### Curriculum Learning (10 Levels)
-
-| Level | Tier         | Difficulty | Max Steps |
-| ----- | ------------ | ---------- | --------- |
-| 1-3   | Beginner     | 0.3 - 0.5  | 15        |
-| 4-6   | Intermediate | 0.5 - 0.7  | 20        |
-| 7-10  | Expert       | 0.7 - 1.0  | 30        |
-
-Auto-advances when avg score > 0.75, regresses when < 0.35.
-
----
-
-## 🧠 Scoring & Explainability
-
-Every action payload must include `ActionJustification`:
-
-```json
-{
-  "action_type": "isolate_host",
-  "target": "HOST-003",
-  "parameters": {},
-  "justification": {
-    "reasoning": "Host HOST-003 shows active C2 communication to known malicious IP 185.220.101.45 matching threat intel. Isolation prevents lateral movement to db-server-01.",
-    "evidence": [
-      {
-        "source": "ALT-10001",
-        "content": "C2 beacon detected to 185.220.101.45 every 300s",
-        "relevance_score": 0.95
-      }
-    ],
-    "risk_assessment": {
-      "threat_level": "CRITICAL",
-      "confidence": 0.92,
-      "potential_impact": "Lateral movement to database tier",
-      "business_disruption_estimate": "High — web tier isolated"
-    },
-    "alternatives_considered": [
-      {
-        "action": "block_ip",
-        "rejected_because": "Does not stop existing C2 session already established"
-      }
-    ]
-  }
-}
-```
-
-### Grading Formulas
-
-- **Task 1:** `final = triage_accuracy × 0.70 + avg_explanation × 0.30`
-- **Task 2:** `final = (triage × 0.5 + containment × 0.5) × 0.80 + avg_explanation × 0.20`
-- **Task 3:** `final = (triage × 0.20 + containment × 0.30 + eradication × 0.25 + recovery × 0.25) × 0.75 + avg_explanation × 0.25`
-
----
-
-## ⚖️ EU AI Act Compliance
-
-AnomalyGuard is the **only OpenEnv environment built around EU AI Act compliance**.
-
-Every episode generates a 5-check compliance audit:
-
-| Check                        | Article         | What It Validates                     |
-| ---------------------------- | --------------- | ------------------------------------- |
-| All Actions Justified        | Article 14.4(b) | Every action has reasoning ≥50 chars  |
-| Explanation Quality          | Article 13.1    | Average explanation score ≥0.60       |
-| Human Oversight Available    | Article 14.1    | `escalate_incident` always accessible |
-| High-Risk Actions Documented | Article 14.4(c) | isolate/disable/restore all justified |
-| No Classification Bias       | Article 10.2(f) | TP/FP ratio within acceptable range   |
-
-```bash
-curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
-```
-
-**Why this matters:** The EU AI Act requires high-risk AI systems to maintain human oversight, provide transparent reasoning, and document all decisions. AnomalyGuard enforces these requirements at the environment level — making it suitable for EU-regulated deployments.
-
----
-
-## 📊 Baseline Performance (Measured)
-
-| Agent Type | Task 1 | Task 2 | Task 3 | Average |
-|-----------|--------|--------|--------|---------|
-| Random Agent | 0.05-0.15 | 0.03-0.10 | 0.01-0.05 | ~0.08 |
-| **Rule-Based (Measured)** | **0.9023** | **0.9366** | **0.5232** | **0.7874** |
-| RL Agent Target | 0.75+ | 0.65+ | 0.55+ | 0.65+ |
-
-> ✅ **Rule-based agent exceeds RL target (0.79 > 0.75)** — demonstrates environment provides strong, learnable reward signal.
-
-**Note on Task 3:** The rule-based agent times out because it lacks the logic for eradication (remove_persistence) and recovery (restore_host) phases. A trained RL agent or LLM agent would learn these patterns and complete the full IR lifecycle.
-
----
-
-## 🤖 GRPO Training & Synthetic Data
-
-AnomalyGuard includes a robust training pipeline (`training/train_grpo.py`) leveraging **GRPO (Group Relative Policy Optimization)** for alignment. 
-
-- **Synthetic Dataset Generation:** Automatically generates supervised training data from the procedural scenarios, mapping perfect observations to justifiable actions.
-- **Multi-Component Reward Function:** Incorporates format compliance, justification quality, decision quality, and anti-hacking penalties with randomized weights to prevent reward gaming.
-- **Reward Tracking & Plotting:** Outputs a visual progress curve (`reward_plot.png`) demonstrating the agent's improvement over the rule-based baseline.
-
----
-
-## 🔄 Reproducibility
-
-```bash
-# Same seed always produces identical scenario
-curl -X POST "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
-curl -X POST "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
-# Both calls produce IDENTICAL alerts, hosts, threat intel
-```
-
-Guaranteed by `random.Random(seed)` throughout `scenarios.py` with no global state mutation.
-
----
-
-## 🎬 Run the Demo
-
-### 1. Run the Python Demo
-
-See the environment in action with one command:
-
-```bash
-python demo.py
-```
-
-### 2. Demo Endpoints
-
-```bash
-# Demo anti-hacking detection
-curl -X POST "http://localhost:7860/demo/anti-hacking"
-
-# Demo realistic scenario generation
-curl -X POST "http://localhost:7860/demo/realistic-scenario"
-```
-
-**Sample output:**
-
-```
-════════════════════════════════════════════════════════════
-  AnomalyGuard — Live Environment Demo
-════════════════════════════════════════════════════════════
-  Health: OK ✓
-
-Task 1 - Alert Triage:
-  Final Score:      0.9023
-  Action Quality:   1.0000
-  Explanation:      0.6744
-  Precision:        0.571
-  Recall:           1.000
-  F1 Score:         0.727
-  EU AI Act:        COMPLIANT ✓ (5/5 checks) Risk: LOW
-  Steps:            12
-
-Task 2 - Incident Containment:
-  Final Score:      0.9366
-  Action Quality:   1.0000
-  Explanation:      0.6830
-  Containment:      1.00
-  EU AI Act:        COMPLIANT ✓ (5/5 checks) Risk: LOW
-  Steps:            17
-
-Task 3 - Full Incident Response:
-  Final Score:      0.5232
-  Action Quality:   0.5000
-  Containment:      1.00
-  EU AI Act:        COMPLIANT ✓ (4/5 checks) Risk: MEDIUM
-  Steps:            30 (timeout)
-
-AVERAGE:            0.7874
-```
-
----
-
-## 🌐 API Endpoints
-
-### Core
-
-| Endpoint                   | Method | Description                       |
-| -------------------------- | ------ | --------------------------------- |
-| `/health`                  | GET    | Health check                      |
-| `/tasks`                   | GET    | List all tasks                    |
-| `/reset?task_id=1&seed=42` | POST   | Start new episode                 |
-| `/step`                    | POST   | Execute action with justification |
-| `/state`                   | GET    | Current masked observation        |
-| `/state/raw`               | GET    | Full unmasked state for grading   |
-| `/grader?task_id=1`        | POST   | Grade completed episode           |
-
-### Observability
-
-| Endpoint                       | Method | Description                         |
-| ------------------------------ | ------ | ----------------------------------- |
-| `/host/{host_id}/visibility`   | GET    | Check what agent can see for a host |
-| `/observability/status`        | GET    | Query coverage across all hosts     |
-| `/host/{host_id}/dependencies` | GET    | Prerequisites before restoration    |
-
-### Metrics
-
-| Endpoint            | Method | Description                             |
-| ------------------- | ------ | --------------------------------------- |
-| `/metrics/detailed` | GET    | Precision, recall, F1, containment rate |
-| `/metrics/rewards`  | GET    | Step-by-step reward history             |
-| `/metrics/spread`   | GET    | Malware spread statistics               |
-
-### Baseline
-
-| Endpoint              | Method | Description                 |
-| --------------------- | ------ | --------------------------- |
-| `/baseline?task_id=1` | POST   | Run rule-based agent        |
-| `/baseline/reference` | GET    | Expected performance ranges |
-
-### Curriculum
-
-| Endpoint              | Method | Description                   |
-| --------------------- | ------ | ----------------------------- |
-| `/curriculum/status`  | GET    | Current level and performance |
-| `/curriculum/toggle`  | POST   | Enable/disable curriculum     |
-| `/episodes/diversity` | GET    | Scenario diversity statistics |
-
-### EU AI Act Compliance
-
-| Endpoint            | Method | Description                    |
-| ------------------- | ------ | ------------------------------ |
-| `/compliance/audit` | GET    | 5-check EU AI Act audit report |
-| `/compliance/trail` | GET    | Full action audit trail        |
-
-### Multi-Agent
-
-| Endpoint              | Method | Description                         |
-| --------------------- | ------ | ----------------------------------- |
-| `/reset-multiagent`   | POST   | Start multi-agent episode           |
-| `/step-multiagent`    | POST   | Execute multi-agent step            |
-
-### Threat Intelligence & Business
-
-| Endpoint                | Method | Description                         |
-| ----------------------- | ------ | ----------------------------------- |
-| `/threat-intel/live`    | GET    | Fetch live threat intelligence      |
-| `/business-impact/roi`  | GET    | Calculate ROI of agent performance  |
-
-### Security & Anti-Hacking
-
-| Endpoint                               | Method | Description                         |
-| -------------------------------------- | ------ | ----------------------------------- |
-| `/anti-hacking/report`                 | GET    | View cheating detection report      |
-| `/anti-hacking/test/{exploit_type}`    | POST   | Test specific exploit detection     |
-
----
-
-## ⚙️ Quick Start
-
-### Local Development
-
-```bash
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 7860
-```
+Run training:
 
-### Docker
+Bash
 
-```bash
-docker build -t anomalyguard .
-docker run -p 7860:7860 anomalyguard
-```
-
-### Run LLM Agent
-
-```bash
-export API_BASE_URL="https://api.openai.com/v1"
-export MODEL_NAME="gpt-4o-mini"
-export HF_TOKEN="your-api-key"
-export ENV_URL="http://localhost:7860"
-python inference.py
-```
-
-### Training Models
-
-To train an agent using GRPO with Unsloth:
-```bash
 python training/train_grpo.py
-```
+Run demo:
 
-To run adversarial co-evolution training:
-```bash
-python training/train_coevolution.py
-```
+Bash
 
----
+python demo.py
+Themes Covered
+World Modeling (Professional) — The agent operates
+in a partially observable enterprise network and
+must build an internal model of the incident through
+systematic investigation.
 
-## ⚠️ Known Limitations
+Multi-Agent Interactions — Three specialized agents
+coordinate on incident response with explicit
+dependencies and shared threat intelligence.
 
-- **Single-agent only** — no multi-agent coordination
-- **Simulated network** — not real packet captures
-- **Static adversary** — malware spreads probabilistically but does not adapt to agent
-- **Max 25 hosts** — real enterprises have thousands
-- **Discrete actions** — no continuous parameter tuning
+Self-Improvement — The adaptive curriculum scales
+difficulty and training duration based on agent
+performance, driving recursive capability growth.
 
----
+Known Limitations
+Simulated network, not real packet captures
+Malware spread is probabilistic, not adaptive
+Maximum 25 hosts per scenario
+Discrete action space only
+About
+Built solo for the OpenEnv Hackathon 2026.
 
-## 📚 Related Work
+Author: VSSK Sri Padmavathi
 
-- **OpenAI Gym** — Standard RL interface (we extend with explainability)
-- **CyberBattleSim** (Microsoft) — Network security simulation (we add MITRE ATT&CK)
-- **BRAWL** (MITRE) — Autonomous cyber ops (we add curriculum learning)
-- **EU AI Act** — Regulatory framework driving our justification requirement
-
----
-
-## 🏆 About This Project
-
-Built for the **Meta OpenEnv Hackathon** hosted by **Scaler**, **OpenEnv**, **Meta AI**, and **PyTorch**.
-
-This environment was designed to push the boundaries of what an OpenEnv environment can do — combining real cybersecurity scenarios, EU AI Act compliance, and advanced RL training features into a single deployable package.
+Themes: World Modeling, Multi-Agent Interactions,
+Self-Improvement

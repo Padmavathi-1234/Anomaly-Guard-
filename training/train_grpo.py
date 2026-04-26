@@ -58,7 +58,7 @@ LOAD_IN_4BIT     = True
 
 BATCH_SIZE       = 2
 GRAD_ACCUM       = 4
-LR               = 5e-6
+LR               = 5e-5
 LOGGING_STEPS    = 10
 SAVE_STEPS       = 50
 SAVE_TOTAL_LIMIT = 2
@@ -73,30 +73,28 @@ FINAL_MODEL_DIR  = "./anomalyguard-grpo-final"
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC STEPS — Auto-selected based on curriculum complexity
 # ════════════════════════════════════════════════════════════════════
-
 def get_dynamic_steps(curriculum_level: int) -> int:
     """
     Automatically choose training steps based on curriculum complexity.
     Higher level = more complex scenarios = more steps needed.
 
-    Level 1-3  (Beginner):     50-100 steps  - fast proof of concept
-    Level 4-6  (Intermediate): 125-175 steps - solid learning
-    Level 7-10 (Expert):       200-300 steps - deep training
+    Level 1-3  (Beginner):     150-200 steps  - solid learning
+    Level 4-6  (Intermediate): 225-275 steps  - deep training
+    Level 7-10 (Expert):       300+ steps     - maximum complexity
     """
     step_map = {
-        1:  50,   # Beginner  - alert triage only
-        2:  75,   # Beginner  - slightly more complex
-        3:  100,  # Beginner  - solid baseline
-        4:  125,  # Intermediate - containment added
-        5:  150,  # Intermediate - multi-step IR
-        6:  175,  # Intermediate - harder scenarios
-        7:  200,  # Expert - full IR lifecycle
-        8:  250,  # Expert - complex multi-agent
-        9:  275,  # Expert - adversarial scenarios
-        10: 300,  # Master  - maximum complexity
+        1:  150,
+        2:  175,
+        3:  200,
+        4:  225,
+        5:  250,
+        6:  275,
+        7:  300,
+        8:  300,
+        9:  300,
+        10: 300,
     }
-    return step_map.get(curriculum_level, 100)
-
+    return step_map.get(curriculum_level, 150)
 # ── Logging ─────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -176,27 +174,47 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 tokenizer.pad_token    = tokenizer.eos_token
 tokenizer.padding_side = "left"
 
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    quantization_config=BitsAndBytesConfig(
-        load_in_4bit              = True,
-        bnb_4bit_quant_type       = "nf4",
-        bnb_4bit_compute_dtype    = torch.float16,
-        bnb_4bit_use_double_quant = True,
-    ),
-    device_map  = "auto",
-    torch_dtype = torch.float16,
-)
+# Check if previous trained model exists
+import os
 
-model = get_peft_model(model, LoraConfig(
-    r              = LORA_R,
-    lora_alpha     = LORA_ALPHA,
-    target_modules = LORA_TARGETS,
-    lora_dropout   = LORA_DROPOUT,
-    bias           = "none",
-    task_type      = TaskType.CAUSAL_LM,
+CHECKPOINT = "./anomalyguard-grpo-final"
+
+if os.path.exists(CHECKPOINT):
+    log.info("Loading from previous checkpoint: %s", CHECKPOINT)
+    base_model = AutoModelForCausalLM.from_pretrained(
+        CHECKPOINT,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        ),
+        device_map="auto",
+        torch_dtype=torch.float16,
+    )
+    log.info("Continuing from previous training run!")
+else:
+    log.info("Starting fresh training run.")
+    base_model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        ),
+        device_map="auto",
+        torch_dtype=torch.float16,
+    )
+
+model = get_peft_model(base_model, LoraConfig(
+    r=LORA_R,
+    lora_alpha=LORA_ALPHA,
+    target_modules=LORA_TARGETS,
+    lora_dropout=LORA_DROPOUT,
+    bias="none",
+    task_type=TaskType.CAUSAL_LM,
 ))
-
 model.print_trainable_parameters()
 log.info("Model + LoRA adapters ready.")
 

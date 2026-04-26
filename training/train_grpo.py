@@ -25,6 +25,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# ── Experiment Tracking ─────────────────────────────────────────────
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("wandb not installed. Run: pip install wandb")
+
 from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
@@ -95,6 +103,7 @@ def get_dynamic_steps(curriculum_level: int) -> int:
         10: 300,
     }
     return step_map.get(curriculum_level, 150)
+
 # ── Logging ─────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -130,7 +139,6 @@ log.info("All subsystems ready.")
 
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC STEPS CALCULATION
-# Based on current curriculum level after subsystems initialized
 # ════════════════════════════════════════════════════════════════════
 try:
     current_level = curriculum.current_level
@@ -150,7 +158,7 @@ log.info("  Complexity Tier  : %s",
 log.info("  Est. Time on T4  : ~%d minutes", MAX_STEPS * 0.5)
 log.info("=" * 60)
 
-# Save dynamic config for reference
+# Save dynamic config
 with open(f"{RESULTS_DIR}/training_config.json", "w") as f:
     json.dump({
         "curriculum_level": current_level,
@@ -173,9 +181,6 @@ log.info("Loading model: %s", MODEL_NAME)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 tokenizer.pad_token    = tokenizer.eos_token
 tokenizer.padding_side = "left"
-
-# Check if previous trained model exists
-import os
 
 CHECKPOINT = "./anomalyguard-grpo-final"
 
@@ -427,12 +432,24 @@ def reward_func(completions: List[str], **kwargs) -> List[float]:
 
     if call_counter % 5 == 0:
         _save_logs()
+        anti_hack_count = sum(
+            1 for h in batch_anti_hack if h.get("hacking_detected")
+        )
         log.info(
             "Step %4d | avg_reward=%.3f | anti_hack_flags=%d",
             call_counter * LOGGING_STEPS,
             avg,
-            sum(1 for h in batch_anti_hack if h.get("hacking_detected")),
+            anti_hack_count,
         )
+        # Log to wandb every 5 calls
+        if WANDB_AVAILABLE and wandb.run:
+            wandb.log({
+                "train/avg_reward":       avg,
+                "train/step":             call_counter * LOGGING_STEPS,
+                "train/anti_hack_flags":  anti_hack_count,
+                "train/curriculum_level": curriculum.current_level,
+                "train/peak_reward":      max(reward_log) if reward_log else 0,
+            })
 
     return rewards
 
@@ -546,6 +563,12 @@ def rollout_function(prompts: List[str]) -> List[Dict]:
                 transition = step_info.get("curriculum_transition", {})
                 if transition:
                     curriculum_log.append(transition)
+                    # Log curriculum transition to wandb
+                    if WANDB_AVAILABLE and wandb.run:
+                        wandb.log({
+                            "curriculum/transition": transition,
+                            "curriculum/level":      curriculum.current_level,
+                        })
                 break
 
         trajectories.append({
@@ -629,6 +652,57 @@ def main():
     log.info("                Curriculum, EU-AI-Act Compliance")
     log.info("=" * 60)
 
+    # ── Initialize wandb experiment tracking ────────────────────────
+    wandb_run_url = "N/A"
+    if WANDB_AVAILABLE:
+        try:
+            wandb.init(
+                project = "anomalyguard-grpo",
+                name    = f"curriculum-L{current_level}-steps-{MAX_STEPS}",
+                config  = {
+                    "model":            MODEL_NAME,
+                    "max_steps":        MAX_STEPS,
+                    "curriculum_level": current_level,
+                    "complexity_tier": (
+                        "Beginner"     if current_level <= 3
+                        else "Intermediate" if current_level <= 6
+                        else "Expert"
+                    ),
+                    "learning_rate":    LR,
+                    "batch_size":       BATCH_SIZE,
+                    "grad_accum":       GRAD_ACCUM,
+                    "lora_r":           LORA_R,
+                    "lora_alpha":       LORA_ALPHA,
+                    "num_synth":        NUM_SYNTH,
+                    "environment":      "AnomalyGuard",
+                    "themes": [
+                        "World Modeling (Professional)",
+                        "Multi-Agent Interactions",
+                        "Self-Improvement",
+                    ],
+                    "features": [
+                        "EU AI Act Compliance",
+                        "AntiHackingGuard",
+                        "RealisticScenarioGenerator",
+                        "ProceduralAttackGenerator",
+                        "NetworkTopologyGenerator",
+                        "LiveThreatIntel",
+                        "MultiComponentReward",
+                        "AdaptiveCurriculum",
+                        "PartialObservability",
+                        "MalwareSpreadSimulation",
+                    ],
+                }
+            )
+            wandb_run_url = wandb.run.url
+            log.info("Wandb tracking started: %s", wandb_run_url)
+            log.info("View live training at: %s", wandb_run_url)
+        except Exception as e:
+            log.warning("Wandb init failed: %s. Continuing without tracking.", e)
+    else:
+        log.warning("Wandb not available. Install with: pip install wandb")
+
+    # ── GRPOConfig ───────────────────────────────────────────────────
     config = GRPOConfig(
         output_dir                  = CKPT_DIR,
         per_device_train_batch_size = BATCH_SIZE,
@@ -640,7 +714,7 @@ def main():
         num_generations             = 2,
         max_completion_length       = 400,
         max_prompt_length           = 512,
-        report_to                   = "none",
+        report_to                   = "wandb" if WANDB_AVAILABLE else "none",
         save_total_limit            = SAVE_TOTAL_LIMIT,
         seed                        = 42,
         bf16                        = False,
@@ -663,21 +737,52 @@ def main():
     elapsed = time.time() - t0
     log.info("Training finished in %.1f min", elapsed / 60)
 
+    # ── Save model ───────────────────────────────────────────────────
     model.save_pretrained(FINAL_MODEL_DIR)
     tokenizer.save_pretrained(FINAL_MODEL_DIR)
     log.info("Model saved -> %s", FINAL_MODEL_DIR)
 
+    # ── Save logs ────────────────────────────────────────────────────
     _save_logs()
     log.info(
         "Curriculum final: %s",
         json.dumps(curriculum.status(), indent=2),
     )
 
-    _generate_plots()
+    # ── Log final metrics to wandb ───────────────────────────────────
+    if WANDB_AVAILABLE and wandb.run:
+        final_metrics = {
+            "final/reward":          reward_log[-1] if reward_log else 0,
+            "final/peak_reward":     max(reward_log) if reward_log else 0,
+            "final/mean_reward":     float(np.mean(reward_log)) if reward_log else 0,
+            "final/total_steps":     MAX_STEPS,
+            "final/curriculum_level": current_level,
+            "final/training_time_min": elapsed / 60,
+            "final/anti_hack_total": sum(
+                1 for h in anti_hack_log
+                if isinstance(h, dict) and h.get("hacking_detected", False)
+            ),
+        }
+        wandb.log(final_metrics)
+        log.info("Final metrics logged to wandb.")
+
+        # Log training plot to wandb
+        _generate_plots()
+        plot_path = f"{RESULTS_DIR}/training_dashboard.png"
+        if os.path.exists(plot_path):
+            wandb.log({"training_plot": wandb.Image(plot_path)})
+            log.info("Training plot uploaded to wandb.")
+
+        wandb.finish()
+        log.info("Wandb run complete. View at: %s", wandb_run_url)
+    else:
+        _generate_plots()
+
     log.info(
         "DONE. Artifacts in %s and %s",
         RESULTS_DIR, FINAL_MODEL_DIR,
     )
+    log.info("Wandb URL: %s", wandb_run_url)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -720,7 +825,7 @@ def _generate_plots():
     )
     ax.set_xlabel("Step")
     ax.set_ylabel("Avg Reward")
-    ax.set_ylim(0.3, 1.1)
+    ax.set_ylim(0.0, 1.1)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=10)
 

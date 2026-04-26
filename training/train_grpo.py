@@ -28,7 +28,6 @@ import matplotlib.pyplot as plt
 from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
-# ── FIX 1: Replace unsloth with transformers ────────────────────────
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -36,7 +35,6 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
-# ── AnomalyGuard imports ────────────────────────────────────────────
 from app.core.environment_multiagent import MultiAgentAnomalyGuard, AgentRole
 from app.scenarios.realistic_attacks import RealisticScenarioGenerator
 from app.scenarios.procedural_attacks import ProceduralAttackGenerator
@@ -50,7 +48,6 @@ from app.core.curriculum_manager import CurriculumManager
 # 1. CONFIGURATION
 # ════════════════════════════════════════════════════════════════════
 
-# ── FIX 2: Replace unsloth model with standard HF model ─────────────
 MODEL_NAME       = "Qwen/Qwen2.5-1.5B-Instruct"
 MAX_SEQ_LENGTH   = 2048
 LORA_R           = 16
@@ -59,7 +56,6 @@ LORA_DROPOUT     = 0.05
 LORA_TARGETS     = ["q_proj", "k_proj", "v_proj", "o_proj"]
 LOAD_IN_4BIT     = True
 
-MAX_STEPS        = 100
 BATCH_SIZE       = 2
 GRAD_ACCUM       = 4
 LR               = 5e-6
@@ -73,6 +69,33 @@ ROLLOUT_EP_LEN   = 25
 CKPT_DIR         = "./checkpoints"
 RESULTS_DIR      = "./results"
 FINAL_MODEL_DIR  = "./anomalyguard-grpo-final"
+
+# ════════════════════════════════════════════════════════════════════
+# DYNAMIC STEPS — Auto-selected based on curriculum complexity
+# ════════════════════════════════════════════════════════════════════
+
+def get_dynamic_steps(curriculum_level: int) -> int:
+    """
+    Automatically choose training steps based on curriculum complexity.
+    Higher level = more complex scenarios = more steps needed.
+
+    Level 1-3  (Beginner):     50-100 steps  - fast proof of concept
+    Level 4-6  (Intermediate): 125-175 steps - solid learning
+    Level 7-10 (Expert):       200-300 steps - deep training
+    """
+    step_map = {
+        1:  50,   # Beginner  - alert triage only
+        2:  75,   # Beginner  - slightly more complex
+        3:  100,  # Beginner  - solid baseline
+        4:  125,  # Intermediate - containment added
+        5:  150,  # Intermediate - multi-step IR
+        6:  175,  # Intermediate - harder scenarios
+        7:  200,  # Expert - full IR lifecycle
+        8:  250,  # Expert - complex multi-agent
+        9:  275,  # Expert - adversarial scenarios
+        10: 300,  # Master  - maximum complexity
+    }
+    return step_map.get(curriculum_level, 100)
 
 # ── Logging ─────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -108,11 +131,47 @@ env = MultiAgentAnomalyGuard(
 log.info("All subsystems ready.")
 
 # ════════════════════════════════════════════════════════════════════
+# DYNAMIC STEPS CALCULATION
+# Based on current curriculum level after subsystems initialized
+# ════════════════════════════════════════════════════════════════════
+try:
+    current_level = curriculum.current_level
+except Exception:
+    current_level = 1
+
+MAX_STEPS = get_dynamic_steps(current_level)
+
+log.info("=" * 60)
+log.info("  Dynamic Steps Selected")
+log.info("  Curriculum Level : %d", current_level)
+log.info("  Training Steps   : %d", MAX_STEPS)
+log.info("  Complexity Tier  : %s",
+         "Beginner" if current_level <= 3
+         else "Intermediate" if current_level <= 6
+         else "Expert")
+log.info("  Est. Time on T4  : ~%d minutes", MAX_STEPS * 0.5)
+log.info("=" * 60)
+
+# Save dynamic config for reference
+with open(f"{RESULTS_DIR}/training_config.json", "w") as f:
+    json.dump({
+        "curriculum_level": current_level,
+        "max_steps":        MAX_STEPS,
+        "batch_size":       BATCH_SIZE,
+        "learning_rate":    LR,
+        "model":            MODEL_NAME,
+        "complexity_tier": (
+            "Beginner"     if current_level <= 3
+            else "Intermediate" if current_level <= 6
+            else "Expert"
+        ),
+    }, f, indent=2)
+
+# ════════════════════════════════════════════════════════════════════
 # 3. LOAD MODEL + LoRA
 # ════════════════════════════════════════════════════════════════════
 log.info("Loading model: %s", MODEL_NAME)
 
-# ── FIX 3: Replace FastLanguageModel with standard transformers ──────
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 tokenizer.pad_token    = tokenizer.eos_token
 tokenizer.padding_side = "left"
@@ -209,7 +268,7 @@ for i in range(NUM_SYNTH):
     name = scenario.get("name", f"Cyber Attack {i}")
     obs  = scenario.get("initial_state", {})
 
-    tmpl                        = ACTION_TEMPLATES[i % len(ACTION_TEMPLATES)]
+    tmpl                          = ACTION_TEMPLATES[i % len(ACTION_TEMPLATES)]
     a_type, target_src, rsn_tmpl = tmpl
 
     if target_src == "alert" and obs.get("alerts"):
@@ -225,8 +284,8 @@ for i in range(NUM_SYNTH):
         "justification": {
             "reasoning": rsn_tmpl.format(tid=tid, name=name),
             "risk_assessment": {
-                "threat_level":    random.choice(["medium", "high", "critical"]),
-                "confidence":      round(random.uniform(0.65, 0.95), 2),
+                "threat_level":     random.choice(["medium", "high", "critical"]),
+                "confidence":       round(random.uniform(0.65, 0.95), 2),
                 "potential_impact": f"Potential lateral movement / exfiltration from {name}",
             },
             "alternatives_considered": [
@@ -271,17 +330,10 @@ call_counter = 0
 # 7. MULTI-COMPONENT REWARD FUNCTION
 # ════════════════════════════════════════════════════════════════════
 def reward_func(completions: List[str], **kwargs) -> List[float]:
-    """
-    Production reward function combining:
-      - MultiComponentRewardCalculator (5 sparse components)
-      - AntiHackingGuard (4 exploit-detection checks)
-      - Format compliance bonus
-      - EU AI Act compliance bonus proxy
-    """
     global call_counter
     call_counter += 1
-    rewards:        List[float] = []
-    batch_anti_hack: List[Dict] = []
+    rewards:         List[float] = []
+    batch_anti_hack: List[Dict]  = []
 
     for completion in completions:
         text = str(completion)
@@ -347,7 +399,6 @@ def reward_func(completions: List[str], **kwargs) -> List[float]:
         score = max(-0.5, min(1.0, score))
         rewards.append(score)
 
-    # Logging
     avg = sum(rewards) / max(len(rewards), 1)
     reward_log.append(avg)
     step_log.append(call_counter * LOGGING_STEPS)
@@ -480,13 +531,13 @@ def rollout_function(prompts: List[str]) -> List[Dict]:
                 break
 
         trajectories.append({
-            "prompt":         f"{prompt}\nScenario: {scenario.get('name')}",
-            "response":       response,
-            "reward":         ep_reward,
-            "scenario":       scenario.get("name", "Unknown"),
-            "steps":          steps,
+            "prompt":           f"{prompt}\nScenario: {scenario.get('name')}",
+            "response":         response,
+            "reward":           ep_reward,
+            "scenario":         scenario.get("name", "Unknown"),
+            "steps":            steps,
             "curriculum_level": level,
-            "avg_compliance": sum(ep_compliance) / max(len(ep_compliance), 1),
+            "avg_compliance":   sum(ep_compliance) / max(len(ep_compliance), 1),
         })
 
     rews = [t["reward"] for t in trajectories]
@@ -548,7 +599,8 @@ def main():
     log.info("=" * 60)
     log.info("  AnomalyGuard GRPO Training — Full Pipeline")
     log.info("  Model       : %s", MODEL_NAME)
-    log.info("  Steps       : %d", MAX_STEPS)
+    log.info("  Steps       : %d (auto for curriculum level %d)",
+             MAX_STEPS, current_level)
     log.info("  Batch       : %d x %d accum", BATCH_SIZE, GRAD_ACCUM)
     log.info("  Dataset     : %d synthetic examples", len(dataset))
     log.info("  Curriculum  : 8 levels, starting at L%d",
@@ -559,7 +611,6 @@ def main():
     log.info("                Curriculum, EU-AI-Act Compliance")
     log.info("=" * 60)
 
-    # ── FIX 4: Add bf16=False fp16=True for T4 GPU ──────────────────
     config = GRPOConfig(
         output_dir                  = CKPT_DIR,
         per_device_train_batch_size = BATCH_SIZE,
@@ -578,16 +629,17 @@ def main():
         fp16                        = True,
     )
 
-    # ── FIX 5: Use processing_class instead of tokenizer ────────────
     trainer = GRPOTrainer(
-        model             = model,
-        args              = config,
-        processing_class  = tokenizer,
-        reward_funcs      = [reward_func],
-        train_dataset     = dataset,
+        model            = model,
+        args             = config,
+        processing_class = tokenizer,
+        reward_funcs     = [reward_func],
+        train_dataset    = dataset,
     )
 
     log.info("Training begins ...")
+    log.info("Dynamic steps: %d for curriculum level %d",
+             MAX_STEPS, current_level)
     t0 = time.time()
     trainer.train()
     elapsed = time.time() - t0
@@ -643,8 +695,11 @@ def _generate_plots():
             ),
             fontsize=11, fontweight="bold",
         )
-    ax.set_title("Training Reward Curve",
-                 fontsize=14, fontweight="bold")
+    ax.set_title(
+        f"Training Reward Curve\n"
+        f"(Curriculum Level {current_level} | {MAX_STEPS} steps)",
+        fontsize=14, fontweight="bold"
+    )
     ax.set_xlabel("Step")
     ax.set_ylabel("Avg Reward")
     ax.set_ylim(0.3, 1.1)

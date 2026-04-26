@@ -81,42 +81,6 @@ The architecture has 7 layers working together:
 | Blog Post           | https://github.com/Padmavathi-1234/Anomaly-Guard-/blob/main/BLOG.md                   |
 
 ---
-
-## Try It Right Now
-
-Start an investigation:
-
-```bash
-curl -X POST \
-  "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
-Take an action:
-
-Bash
-
-curl -X POST \
-  "https://padmavathi-123-anomalyguard.hf.space/step" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action_type": "triage_alert",
-    "target": "ALT-10001",
-    "parameters": {"classification": "true_positive"},
-    "justification": {
-      "reasoning": "Alert ALT-10001 shows C2 beacon to 185.220.101.45 confidence 0.89. MITRE T1071 confirms active command and control requiring immediate classification.",
-      "evidence": [{"source": "ALT-10001", "content": "C2 beacon detected", "relevance_score": 0.95}],
-      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 allows attacker persistence", "business_disruption_estimate": "High"},
-      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 too high to ignore"}]
-    }
-  }'
-Check EU AI Act compliance:
-
-Bash
-
-curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
-Training Results
-The model was trained using GRPO (Group Relative Policy
-Optimization) with dynamic step selection based on
-curriculum complexity.
-
 Training Progress
 ![Training Progress](results/training_dashboard.png)
 Reward Performance
@@ -167,6 +131,40 @@ Anti-hacking flags remained at zero throughout confirming the model never attemp
 The training loss remained near zero throughout most of the run. This is a known GRPO challenge when reward
 variance is low across sampled completions. Full convergence requires 300 to 500 steps with higher
 learning rate. The pipeline is complete and validated.
+## Try It Right Now
+
+Start an investigation:
+
+```bash
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
+Take an action:
+
+Bash
+
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/step" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_type": "triage_alert",
+    "target": "ALT-10001",
+    "parameters": {"classification": "true_positive"},
+    "justification": {
+      "reasoning": "Alert ALT-10001 shows C2 beacon to 185.220.101.45 confidence 0.89. MITRE T1071 confirms active command and control requiring immediate classification.",
+      "evidence": [{"source": "ALT-10001", "content": "C2 beacon detected", "relevance_score": 0.95}],
+      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 allows attacker persistence", "business_disruption_estimate": "High"},
+      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 too high to ignore"}]
+    }
+  }'
+Check EU AI Act compliance:
+
+Bash
+
+curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
+Training Results
+The model was trained using GRPO (Group Relative Policy
+Optimization) with dynamic step selection based on
+curriculum complexity.
 
 What Makes This Different
 Feature	AnomalyGuard	Typical RL Env

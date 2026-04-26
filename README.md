@@ -81,44 +81,46 @@ The architecture has 7 layers working together:
 | Blog Post           | https://github.com/Padmavathi-1234/Anomaly-Guard-/blob/main/BLOG.md                   |
 
 ---
+
 Training Progress
 ![Training Progress](results/training_dashboard.png)
 Reward Performance
 
-| Agent | Score | vs Random Baseline |
-|---|---|---|
-| Random Agent | 0.080 | baseline |
-| GRPO Training Start | 0.117 | +46% |
-| GRPO Training Peak | 0.345 | +331% |
-| GRPO Training End | 0.158 | +97% |
-| Rule-Based Agent | 0.787 | reference |
+| Agent               | Score | vs Random Baseline |
+| ------------------- | ----- | ------------------ |
+| Random Agent        | 0.080 | baseline           |
+| GRPO Training Start | 0.117 | +46%               |
+| GRPO Training Peak  | 0.345 | +331%              |
+| GRPO Training End   | 0.158 | +97%               |
+| Rule-Based Agent    | 0.787 | reference          |
 
 Key Training Observations
 
-| Metric | Value | Meaning |
-|---|---|---|
-| Anti-hacking flags | 0 | Model never gamed the reward |
-| Reward variance | Decreasing | Model becoming more consistent |
-| Completion length | 383 tokens | Model generating detailed responses |
-Training time	142 minutes	On Tesla T4 GPU
-Peak reward step	Step 100	+331% above random baseline
+| Metric             | Value      | Meaning                             |
+| ------------------ | ---------- | ----------------------------------- |
+| Anti-hacking flags | 0          | Model never gamed the reward        |
+| Reward variance    | Decreasing | Model becoming more consistent      |
+| Completion length  | 383 tokens | Model generating detailed responses |
+
+Training time 142 minutes On Tesla T4 GPU
+Peak reward step Step 100 +331% above random baseline
 EU AI Act Compliance Scores
-Article	Check	Score
-14.4(b)	Actions Justified	85%
-13.1	Explanation Quality	72%
-14.1	Human Oversight	100%
-14.4(c)	High-Risk Documented	88%
-10.2(f)	No Classification Bias	91%
+Article Check Score
+14.4(b) Actions Justified 85%
+13.1 Explanation Quality 72%
+14.1 Human Oversight 100%
+14.4(c) High-Risk Documented 88%
+10.2(f) No Classification Bias 91%
 Environment Statistics
-Feature	Value
-Tasks	3
-Curriculum Levels	10
-Attack Archetypes	7
-MITRE ATT&CK Techniques	12
-EU AI Act Checks	5
-Anti-Hack Guards	4
-Network Segments	8
-Max Hosts Per Scenario	25
+Feature Value
+Tasks 3
+Curriculum Levels 10
+Attack Archetypes 7
+MITRE ATT&CK Techniques 12
+EU AI Act Checks 5
+Anti-Hack Guards 4
+Network Segments 8
+Max Hosts Per Scenario 25
 Training Notes
 This submission includes a proof of concept training run completed under compute and time constraints during the hackathon.
 
@@ -131,6 +133,7 @@ Anti-hacking flags remained at zero throughout confirming the model never attemp
 The training loss remained near zero throughout most of the run. This is a known GRPO challenge when reward
 variance is low across sampled completions. Full convergence requires 300 to 500 steps with higher
 learning rate. The pipeline is complete and validated.
+
 ## Try It Right Now
 
 Start an investigation:

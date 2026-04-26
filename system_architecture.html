@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnomalyGuard — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0a0a1a;color:#e2e8f0;overflow-x:hidden;min-height:100vh}
+.bg-grid{position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(99,102,241,.08) 1px,transparent 0);background-size:40px 40px;z-index:0}
+.bg-glow{position:fixed;top:50%;left:50%;width:800px;height:800px;background:radial-gradient(circle,rgba(99,102,241,.12) 0%,transparent 70%);transform:translate(-50%,-50%);z-index:0}
+.container{max-width:1400px;margin:0 auto;padding:2rem;position:relative;z-index:1}
+.hero{text-align:center;padding:3rem 2rem 2rem;margin-bottom:2rem}
+.hero-badge{display:inline-block;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.2));border:1px solid rgba(99,102,241,.3);border-radius:50px;padding:.4rem 1.2rem;font-size:.75rem;font-weight:600;color:#a5b4fc;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem}
+.hero h1{font-size:2.8rem;font-weight:900;background:linear-gradient(135deg,#e0e7ff,#a5b4fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem;letter-spacing:-.02em}
+.hero p{color:#94a3b8;font-size:1.1rem;max-width:700px;margin:0 auto}
+.section-title{display:flex;align-items:center;gap:.75rem;margin:2.5rem 0 1.5rem;padding-left:.5rem}
+.section-title .bar{width:4px;height:28px;border-radius:2px;background:linear-gradient(180deg,#6366f1,#8b5cf6)}
+.section-title h2{font-size:1.3rem;font-weight:700;color:#c7d2fe}
+.arch-grid{display:grid;grid-template-columns:1fr;gap:1.5rem}
+
+/* Cards */
+.layer{background:linear-gradient(145deg,rgba(30,27,75,.6),rgba(49,46,129,.3));border:1px solid rgba(99,102,241,.15);border-radius:16px;padding:1.5rem;backdrop-filter:blur(10px);transition:transform .3s,box-shadow .3s}
+.layer:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(99,102,241,.15)}
+.layer-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid rgba(99,102,241,.1)}
+.layer-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.layer-header h3{font-size:1rem;font-weight:700;color:#e0e7ff}
+.layer-header span{font-size:.75rem;color:#94a3b8;display:block;margin-top:2px}
+
+.components{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem}
+.comp{background:rgba(15,12,41,.5);border:1px solid rgba(99,102,241,.12);border-radius:10px;padding:.75rem;text-align:center;transition:all .3s;cursor:default}
+.comp:hover{border-color:rgba(99,102,241,.4);background:rgba(30,27,75,.5);transform:scale(1.03)}
+.comp .name{font-size:.8rem;font-weight:600;color:#c7d2fe;margin-bottom:.25rem}
+.comp .desc{font-size:.68rem;color:#94a3b8;line-height:1.3}
+.comp .tech{display:inline-block;margin-top:.35rem;font-size:.6rem;background:rgba(99,102,241,.15);color:#a5b4fc;padding:.15rem .5rem;border-radius:10px}
+
+/* Colors for layer icons */
+.icon-api{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+.icon-agent{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+.icon-env{background:linear-gradient(135deg,#06b6d4,#0891b2)}
+.icon-reward{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.icon-compliance{background:linear-gradient(135deg,#10b981,#059669)}
+.icon-scenario{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.icon-train{background:linear-gradient(135deg,#ec4899,#db2777)}
+.icon-deploy{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+
+/* Flow arrows */
+.flow-section{display:flex;flex-direction:column;align-items:center;gap:.5rem;margin:1.5rem 0}
+.flow-arrow{display:flex;flex-direction:column;align-items:center;gap:0}
+.flow-arrow .line{width:2px;height:30px;background:linear-gradient(180deg,rgba(99,102,241,.5),rgba(139,92,246,.5))}
+.flow-arrow .label{font-size:.65rem;color:#818cf8;font-weight:500;padding:.2rem .6rem;background:rgba(99,102,241,.1);border-radius:10px}
+.flow-arrow svg{color:#818cf8}
+
+/* Data flow diagram */
+.data-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:1rem 0}
+.flow-node{text-align:center;padding:1rem .75rem;background:rgba(15,12,41,.5);border:1px solid rgba(99,102,241,.15);border-radius:12px;position:relative}
+.flow-node .f-icon{font-size:1.5rem;margin-bottom:.4rem}
+.flow-node .f-title{font-size:.78rem;font-weight:700;color:#c7d2fe}
+.flow-node .f-sub{font-size:.65rem;color:#94a3b8;margin-top:.2rem}
+.flow-connector{display:flex;align-items:center;justify-content:center;color:#818cf8;font-size:1.2rem}
+
+/* Stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin:2rem 0}
+.stat{text-align:center;padding:1rem;background:rgba(15,12,41,.4);border:1px solid rgba(99,102,241,.1);border-radius:12px}
+.stat .val{font-size:1.6rem;font-weight:800;color:#a5b4fc}
+.stat .lbl{font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-top:.2rem}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;margin:2rem 0;padding:1rem;background:rgba(15,12,41,.3);border-radius:12px;border:1px solid rgba(99,102,241,.08)}
+.legend-item{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:#94a3b8}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+
+.footer{text-align:center;padding:2rem 0;color:#475569;font-size:.75rem;border-top:1px solid rgba(99,102,241,.08);margin-top:2rem}
+
+@media(min-width:900px){.arch-grid{grid-template-columns:1fr 1fr}}
+@media(min-width:1100px){.components{grid-template-columns:repeat(3,1fr)}}
+
+/* Animated pulse */
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.pulse{animation:pulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="container">
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">🛡️ System Architecture</div>
+  <h1>AnomalyGuard</h1>
+  <p>Multi-Agent RL Environment for Cybersecurity Incident Response with EU AI Act Compliance, Adaptive Curriculum & Explainable AI</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat"><div class="val">4</div><div class="lbl">Agent Roles</div></div>
+  <div class="stat"><div class="val">8</div><div class="lbl">Curriculum Levels</div></div>
+  <div class="stat"><div class="val">7</div><div class="lbl">Attack Archetypes</div></div>
+  <div class="stat"><div class="val">5</div><div class="lbl">Reward Components</div></div>
+  <div class="stat"><div class="val">5</div><div class="lbl">EU AI Act Checks</div></div>
+</div>
+
+<!-- High-Level Data Flow -->
+<div class="section-title"><div class="bar"></div><h2>High-Level Data Flow</h2></div>
+<div class="data-flow">
+  <div class="flow-node"><div class="f-icon">📡</div><div class="f-title">SIEM Alerts</div><div class="f-sub">Simulated enterprise alerts with MITRE ATT&CK techniques</div></div>
+  <div class="flow-node"><div class="f-icon">🤖</div><div class="f-title">Multi-Agent System</div><div class="f-sub">Triage → Containment → Threat Hunt → Forensics</div></div>
+  <div class="flow-node"><div class="f-icon">🧠</div><div class="f-title">GRPO Training</div><div class="f-sub">LLM learns IR workflow with LoRA + curriculum</div></div>
+  <div class="flow-node"><div class="f-icon">⚖️</div><div class="f-title">Compliance & Audit</div><div class="f-sub">EU AI Act Art. 10/13/14 validated per action</div></div>
+</div>
+
+<!-- Architecture Layers -->
+<div class="section-title"><div class="bar"></div><h2>Architecture Layers</h2></div>
+<div class="arch-grid">
+
+  <!-- Layer 1: API & Interface -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-api">🌐</div>
+      <div><h3>API & Interface Layer</h3><span>FastAPI REST + Streamlit Dashboard</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">FastAPI Server</div><div class="desc">REST endpoints for reset, step, grade, compliance</div><div class="tech">app/main.py</div></div>
+      <div class="comp"><div class="name">Streamlit Dashboard</div><div class="desc">Before vs After training comparison with Plotly charts</div><div class="tech">dashboard/app.py</div></div>
+      <div class="comp"><div class="name">HF Spaces Deploy</div><div class="desc">Docker-based live deployment on Hugging Face</div><div class="tech">Dockerfile</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 2: Multi-Agent -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-agent">🤖</div>
+      <div><h3>Multi-Agent Coordination</h3><span>4-Role System with Theory-of-Mind</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">Triage Agent</div><div class="desc">Classifies alerts as TP/FP with evidence</div><div class="tech">AgentRole.TRIAGE</div></div>
+      <div class="comp"><div class="name">Containment Agent</div><div class="desc">Isolates hosts, blocks IPs after triage</div><div class="tech">AgentRole.CONTAINMENT</div></div>
+      <div class="comp"><div class="name">Threat Hunter</div><div class="desc">Searches IOCs, analyzes logs, shares intel</div><div class="tech">AgentRole.THREAT_HUNTER</div></div>
+      <div class="comp"><div class="name">Forensics Agent</div><div class="desc">Collects evidence, traces timeline</div><div class="tech">AgentRole.FORENSICS</div></div>
+      <div class="comp"><div class="name">Coordination Tracker</div><div class="desc">Theory-of-Mind beliefs, handoff chains, 5-factor scoring</div><div class="tech">multi_agent_coordinator.py</div></div>
+      <div class="comp"><div class="name">Role Permissions</div><div class="desc">Enforced action constraints per agent role</div><div class="tech">permissions dict</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 3: RL Environment -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-env">🎮</div>
+      <div><h3>RL Environment Core</h3><span>Gymnasium-compatible with Partial Observability</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">AnomalyGuardBase</div><div class="desc">Base env: reset/step/grade, masked observations</div><div class="tech">environment_base.py</div></div>
+      <div class="comp"><div class="name">MultiAgentAnomalyGuard</div><div class="desc">Multi-role env with curriculum & adversarial support</div><div class="tech">environment_multiagent.py</div></div>
+      <div class="comp"><div class="name">Partial Observability</div><div class="desc">query_host reveals hidden state; investigate before act</div><div class="tech">_get_masked_observation</div></div>
+      <div class="comp"><div class="name">Curriculum Manager</div><div class="desc">8-level adaptive difficulty, auto-promotion/demotion</div><div class="tech">curriculum_manager.py</div></div>
+      <div class="comp"><div class="name">Malware Spread Sim</div><div class="desc">Topology-based probabilistic propagation</div><div class="tech">network_topology.py</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 4: Scenario Generation -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-scenario">🎯</div>
+      <div><h3>Scenario Generation Engine</h3><span>Procedural + Realistic + Live Intel</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">Realistic Scenarios</div><div class="desc">7 attack archetypes scaled by curriculum level</div><div class="tech">realistic_attacks.py</div></div>
+      <div class="comp"><div class="name">Procedural Attacks</div><div class="desc">MITRE ATT&CK technique chains, dynamic IOCs</div><div class="tech">procedural_attacks.py</div></div>
+      <div class="comp"><div class="name">Network Topology</div><div class="desc">Randomized segments & host connectivity</div><div class="tech">network_topology.py</div></div>
+      <div class="comp"><div class="name">Live Threat Intel</div><div class="desc">Real-time IOC injection from AbuseIPDB, VirusTotal, OTX</div><div class="tech">threat_intel_live.py</div></div>
+      <div class="comp"><div class="name">Adversarial Attacker</div><div class="desc">Defender-adaptive attack generation</div><div class="tech">adversarial_attacker.py</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 5: Reward & Grading -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-reward">⚡</div>
+      <div><h3>Reward & Grading System</h3><span>Multi-Component Sparse Rewards with Anti-Hacking</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">Reward Calculator</div><div class="desc">5 isolated components with jittered weights</div><div class="tech">reward_calculator.py</div></div>
+      <div class="comp"><div class="name">Anti-Hacking Guard</div><div class="desc">Detects repetition, exploitation, reward farming</div><div class="tech">anti_hacking.py</div></div>
+      <div class="comp"><div class="name">Robust Grader</div><div class="desc">Deterministic grading: action_correctness × explanation</div><div class="tech">grader_robust.py</div></div>
+      <div class="comp"><div class="name">Verifiers</div><div class="desc">Action validity, justification depth, evidence checks</div><div class="tech">verifiers.py</div></div>
+      <div class="comp"><div class="name">ROI Calculator</div><div class="desc">Business impact & cost savings estimation</div><div class="tech">roi_calculator.py</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 6: EU AI Act Compliance -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-compliance">⚖️</div>
+      <div><h3>EU AI Act Compliance Engine</h3><span>Art. 10 / 13 / 14 — Built into Training Signal</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">Art. 14.4(b)</div><div class="desc">All actions justified with reasoning ≥ 50 chars</div><div class="tech">Justification Check</div></div>
+      <div class="comp"><div class="name">Art. 13.1</div><div class="desc">Explanation quality avg score ≥ 0.60</div><div class="tech">Explanation Quality</div></div>
+      <div class="comp"><div class="name">Art. 14.1</div><div class="desc">Human escalation always available</div><div class="tech">Human Oversight</div></div>
+      <div class="comp"><div class="name">Art. 14.4(c)</div><div class="desc">High-risk actions (isolate/disable) fully justified</div><div class="tech">Risk Documentation</div></div>
+      <div class="comp"><div class="name">Art. 10.2(f)</div><div class="desc">TP/FP ratio balanced — no bias</div><div class="tech">Bias Detection</div></div>
+      <div class="comp"><div class="name">Audit Trail</div><div class="desc">Complete action log with compliance records</div><div class="tech">eu_ai_act_engine.py</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 7: Training Pipeline -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-train">🧠</div>
+      <div><h3>GRPO Training Pipeline</h3><span>Full-Stack RL with Dynamic Step Selection</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">Qwen 2.5 1.5B</div><div class="desc">Base model with 4-bit quantization (QLoRA)</div><div class="tech">transformers + bitsandbytes</div></div>
+      <div class="comp"><div class="name">LoRA Adapters</div><div class="desc">r=16, α=16 on q/k/v/o projections</div><div class="tech">peft</div></div>
+      <div class="comp"><div class="name">GRPO Trainer</div><div class="desc">Group Relative Policy Optimization with rollouts</div><div class="tech">trl.GRPOTrainer</div></div>
+      <div class="comp"><div class="name">Dynamic Steps</div><div class="desc">150-300 steps auto-selected by curriculum level</div><div class="tech">get_dynamic_steps()</div></div>
+      <div class="comp"><div class="name">Wandb Tracking</div><div class="desc">Live reward curves, curriculum transitions, anti-hack flags</div><div class="tech">wandb</div></div>
+      <div class="comp"><div class="name">Rollout Engine</div><div class="desc">Multi-episode env interaction with reward aggregation</div><div class="tech">rollout_function()</div></div>
+    </div>
+  </div>
+
+  <!-- Layer 8: Deployment -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-icon icon-deploy">🚀</div>
+      <div><h3>Inference & Deployment</h3><span>LLM Agent + Docker + HF Spaces</span></div>
+    </div>
+    <div class="components">
+      <div class="comp"><div class="name">LLM Inference Agent</div><div class="desc">OpenAI-compatible client with fallback logic</div><div class="tech">inference.py</div></div>
+      <div class="comp"><div class="name">Prompt Engineering</div><div class="desc">Context-aware prompts with partial obs strategy</div><div class="tech">build_user_prompt()</div></div>
+      <div class="comp"><div class="name">Docker Container</div><div class="desc">Containerized FastAPI + Uvicorn on port 7860</div><div class="tech">Dockerfile</div></div>
+      <div class="comp"><div class="name">HF Spaces</div><div class="desc">Live environment at padmavathi-123-anomalyguard.hf.space</div><div class="tech">hf-space/</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>API Layer</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>Agent System</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div>RL Environment</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Scenario Engine</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Reward System</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>EU AI Act</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>Training Pipeline</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>Deployment</div>
+</div>
+
+<!-- Hackathon Themes -->
+<div class="section-title"><div class="bar"></div><h2>Hackathon Themes Covered</h2></div>
+<div class="data-flow" style="grid-template-columns:repeat(3,1fr)">
+  <div class="flow-node" style="border-color:rgba(139,92,246,.3)">
+    <div class="f-icon">🌍</div>
+    <div class="f-title">World Modeling</div>
+    <div class="f-sub">Partially observable enterprise network. Agent builds internal model through systematic investigation.</div>
+  </div>
+  <div class="flow-node" style="border-color:rgba(6,182,212,.3)">
+    <div class="f-icon">🤝</div>
+    <div class="f-title">Multi-Agent Interactions</div>
+    <div class="f-sub">4 specialized agents coordinate with explicit dependencies, theory-of-mind, and shared threat intel.</div>
+  </div>
+  <div class="flow-node" style="border-color:rgba(236,72,153,.3)">
+    <div class="f-icon">📈</div>
+    <div class="f-title">Self-Improvement</div>
+    <div class="f-sub">Adaptive 8-level curriculum scales difficulty & training duration based on agent performance.</div>
+  </div>
+</div>
+
+<div class="footer">
+  AnomalyGuard © 2026 — VSSK Sri Padmavathi | OpenEnv Hackathon | Meta × PyTorch × Scaler<br>
+  Solo Participant — Multi-Agent Cybersecurity RL Environment with EU AI Act Compliance
+</div>
+
+</div>
+</body>
+</html>

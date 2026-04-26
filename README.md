@@ -44,17 +44,61 @@ through a complete incident response lifecycle — investigating hosts, classify
 Every action must be justified with specific evidence. The agent cannot simply isolate a host. It must explain which alert triggered the decision, what it found when it queried the host, why it chose this action over alternatives, and what the risk assessment was.
 This is enforced at the reward level. Unjustified actions receive lower scores. This is how EU AI Act compliance is built into the training signal itself.
 
+## System Architecture
+
+![System Architecture](results/system_architecture.png)
+
+The architecture has 7 layers working together:
+
+- Task Layer: 3 progressive IR tasks
+- Multi-Agent Layer: 3 coordinated specialist agents
+- Partial Observability: Hidden host details force investigation
+- Reward Layer: 6 independent components prevent gaming
+- Scenario Layer: Real MITRE ATT&CK attack chains
+- EU AI Act Layer: 5 compliance checks enforced at reward level
+- Training Layer: GRPO + LoRA with adaptive curriculum
+
 Links
 
-| Resource         | URL                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| Live Environment | https://padmavathi-123-anomalyguard.hf.space                                          |
-| API Docs         | https://padmavathi-123-anomalyguard.hf.space/docs                                     |
-| GitHub           | https://github.com/Padmavathi-1234/Anomaly-Guard-                                     |
-| Google Colab     | https://colab.research.google.com/drive/1KMqWABFJWicDV8VIqyjwAFb4Xg-yAfta?usp=sharing |
-| Experiment Tracking | https://wandb.ai/vssk0109/anomalyguard-grpo 
-| Blog Post | https://github.com/Padmavathi-1234/Anomaly-Guard-/blob/main/BLOG.md |
+| Resource            | URL                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| Live Environment    | https://padmavathi-123-anomalyguard.hf.space                                          |
+| API Docs            | https://padmavathi-123-anomalyguard.hf.space/docs                                     |
+| GitHub              | https://github.com/Padmavathi-1234/Anomaly-Guard-                                     |
+| Google Colab        | https://colab.research.google.com/drive/1KMqWABFJWicDV8VIqyjwAFb4Xg-yAfta?usp=sharing |
+| Experiment Tracking | https://wandb.ai/vssk0109/anomalyguard-grpo                                           |
+| Blog Post           | https://github.com/Padmavathi-1234/Anomaly-Guard-/blob/main/BLOG.md                   |
 
+## Try It Right Now
+
+Start an investigation:
+
+```bash
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
+Take an action:
+
+Bash
+
+curl -X POST \
+  "https://padmavathi-123-anomalyguard.hf.space/step" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_type": "triage_alert",
+    "target": "ALT-10001",
+    "parameters": {"classification": "true_positive"},
+    "justification": {
+      "reasoning": "Alert ALT-10001 shows C2 beacon to 185.220.101.45 confidence 0.89. MITRE T1071 confirms active command and control requiring immediate classification.",
+      "evidence": [{"source": "ALT-10001", "content": "C2 beacon detected", "relevance_score": 0.95}],
+      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 allows attacker persistence", "business_disruption_estimate": "High"},
+      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 too high to ignore"}]
+    }
+  }'
+Check EU AI Act compliance:
+
+Bash
+
+curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
 
 The model was trained using GRPO (Group Relative Policy
 Optimization) with dynamic step selection based on
@@ -105,51 +149,66 @@ Environment Statistics
 | Network Segments        | 8     |
 | Max Hosts Per Scenario  | 25    |
 
-Try It Right Now
+Training Notes
+This submission includes a proof of concept training run completed under compute and time constraints during the hackathon.
 
-Start an investigation:
+The GRPO training pipeline ran successfully for 150 steps on a Tesla T4 GPU using the full AnomalyGuard environment with all features active including EU AI Act compliance engine, AntiHackingGuard, RealisticScenarioGenerator, and adaptive curriculum.
 
-```bash
-curl -X POST \
-  "https://padmavathi-123-anomalyguard.hf.space/reset?task_id=1&seed=42"
-Take an action:
+The trained agent achieved a peak reward of 0.345 which is 331 percent above the random baseline of 0.080.
+Anti-hacking flags remained at zero throughout confirming the model never attempted to game the reward function.
 
-Bash
+The training loss remained near zero throughout most of the run. This is a known GRPO challenge when reward
+variance is low across sampled completions. The rule-based agent baseline of 0.787 was not surpassed
+in this proof of concept run. Full convergence requires 300 to 500 steps with higher learning rate.
 
-curl -X POST \
-  "https://padmavathi-123-anomalyguard.hf.space/step" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action_type": "triage_alert",
-    "target": "ALT-10001",
-    "parameters": {"classification": "true_positive"},
-    "justification": {
-      "reasoning": "Alert ALT-10001 shows C2 beacon to 185.220.101.45 confidence 0.89. MITRE T1071 confirms active command and control requiring immediate classification.",
-      "evidence": [{"source": "ALT-10001", "content": "C2 beacon detected", "relevance_score": 0.95}],
-      "risk_assessment": {"threat_level": "CRITICAL", "confidence": 0.89, "potential_impact": "Active C2 allows attacker persistence", "business_disruption_estimate": "High"},
-      "alternatives_considered": [{"action": "monitor", "rejected_because": "Confidence 0.89 too high to ignore"}]
-    }
-  }'
-Check EU AI Act compliance:
+The training pipeline is complete and validated. The environment, reward functions, and curriculum are all
+working correctly and ready for a full training run with more compute.
 
-Bash
+What Makes This Different
+Feature	AnomalyGuard	Typical RL Env
+Action justification required	Mandatory	None
+EU AI Act compliance engine	Built-in	None
+Partial observability	Query-based	Full visibility
+MITRE ATT&CK integration	Real techniques	Abstract
+Malware spread simulation	Topology-based	Static
+Anti-hacking protection	Multi-layer	None
+Adaptive curriculum	10 levels	Fixed
+Multi-agent architecture	3 roles	Single agent
+The Design
+Partial Observability
+Host details are hidden until the agent calls
+query_host. An agent that isolates a host without
+investigating first gets penalized. This forces
+strategic investigation over blind action-taking,
+mirroring how real SOC analysts work.
 
-curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
-Training Results
-The model was trained using GRPO (Group Relative Policy Optimization) with dynamic step selection based on curriculum complexity. What Makes This Different Feature	AnomalyGuard	Typical RL Env Action justification required	Mandatory	None EU AI Act compliance engine	Built-in	None Partial observability	Query-based	Full visibility MITRE ATT&CK integration	Real techniques	Abstract Malware spread simulation	Topology-based	Static Anti-hacking protection	Multi-layer	None Adaptive curriculum	10 levels	Fixed Multi-agent architecture	3 roles	Single agent The Design Partial Observability Host details are hidden until the agent calls query_host. An agent that isolates a host without investigating first gets penalized. This forces strategic investigation over blind action-taking, mirroring how real SOC analysts work.
+Field	Before query_host	After query_host
+host_id, hostname, ip	Visible	Visible
+role, criticality	Visible	Visible
+c2_active	Hidden	Revealed
+persistence	Hidden	Revealed
+vulnerabilities	Hidden	Revealed
+accounts	Hidden	Revealed
+status	Hidden	Revealed
 Three Coordinated Agents
-Agent	Responsibility :
+Agent	Responsibility
 Triage Agent	Classifies alerts as true or false positives
 Containment Agent	Isolates hosts and blocks malicious IPs
 Forensics Agent	Removes persistence and restores systems
-Agents cannot act out of order. Triage before containment. Containment before eradication.
+Agents cannot act out of order. Triage before
+containment. Containment before eradication.
 Eradication before recovery.
 
 Adaptive Curriculum
-The environment watches agent performance and adjusts difficulty automatically. When success
-exceeds 75 percent it advances. Below 35 percent it regresses. Training steps scale with complexity —
-50 steps for beginners, 300 for expert scenarios.
+The environment watches agent performance and adjusts
+difficulty automatically. When success exceeds 75
+percent it advances. Below 35 percent it regresses.
+Training steps scale with complexity automatically.
 
+Level	Tier	Max Steps
+1-3	Beginner	15
+4-6	Intermediate	20
+7-10	Expert	30
 Real Attack Scenarios
 Every scenario uses real MITRE ATT&CK techniques.
 The IP 185.220.101.45 in training data is a real
@@ -176,14 +235,30 @@ Partial Obs       -> Verified (query_host reveals hidden state)
 Termination       -> Verified (terminated vs truncated correct)
 Grader            -> Deterministic (no random, no time-based logic)
 Deployment        -> Live on Hugging Face Spaces
+GRPO Training Pipeline
+text
+
+RealisticScenarioGenerator   -> 7 attack archetypes
+ProceduralAttackGenerator    -> MITRE ATT&CK chains
+NetworkTopologyGenerator     -> randomized networks
+LiveThreatIntel              -> real IOC injection
+MultiComponentRewardCalculator -> 5 sparse components
+AntiHackingGuard             -> exploit detection
+CurriculumManager            -> adaptive difficulty
+EUAIActComplianceEngine      -> compliance scoring
+Run training:
+
+Bash
+
+python training/train_grpo.py
 API Reference
 Core
 Endpoint	Method	Description
 /health	GET	Health check
 /reset	POST	Start new episode
-/step	POST	Execute action
-/state	GET	Current observation
-/grader	POST	Grade episode
+/step	POST	Execute action with justification
+/state	GET	Current masked observation
+/grader	POST	Grade completed episode
 Training
 Endpoint	Method	Description
 /train/start	POST	Start GRPO training
@@ -217,6 +292,7 @@ Run demo:
 Bash
 
 python demo.py
+
 Themes Covered
 World Modeling (Professional) — The agent operates
 in a partially observable enterprise network and
@@ -236,9 +312,10 @@ Simulated network, not real packet captures
 Malware spread is probabilistic, not adaptive
 Maximum 25 hosts per scenario
 Discrete action space only
+Full training convergence requires 300-500 steps
 About
-Meta PyTorch OpenEnv HuggingFace X Scaler Hackathon 2026
-Solo Participant
+Built solo for the OpenEnv Hackathon 2026 hosted by
+Scaler, OpenEnv, Meta AI, and PyTorch.
 
 Author: VSSK Sri Padmavathi
 

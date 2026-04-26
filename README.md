@@ -1,3 +1,4 @@
+---
 title: AnomalyGuard
 emoji: 🛡️
 colorFrom: red
@@ -16,7 +17,7 @@ tags:
 - eu-ai-act
 - multi-agent
 - grpo
-
+---
 _AnomalyGuard_
 An RL Environment That Trains AI to Think Like a Cybersecurity Analyst
 

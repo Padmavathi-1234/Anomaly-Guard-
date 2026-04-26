@@ -19,6 +19,9 @@ accelerate
 bitsandbytes
 datasets
 
+# ── Experiment Tracking ───────────────────────────────────
+wandb
+
 # ── Visualization ─────────────────────────────────────────
 matplotlib
 numpy

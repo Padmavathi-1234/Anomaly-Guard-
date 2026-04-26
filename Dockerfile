@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy everything
 COPY . .
-
+ENV WANDB_API_KEY=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
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 

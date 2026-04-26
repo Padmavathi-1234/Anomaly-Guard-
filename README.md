@@ -1,25 +1,23 @@
----
 title: AnomalyGuard
-emoji: 🛡️
 colorFrom: red
 colorTo: blue
 sdk: docker
 pinned: false
 license: mit
 tags:
-  - openenv
-  - reinforcement-learning
-  - cybersecurity
-  - incident-response
-  - explainable-ai
-  - curriculum-learning
-  - eu-ai-act
-  - multi-agent
-  - grpo
----
 
-# AnomalyGuard
-### An RL Environment That Trains AI to Think Like a Cybersecurity Analyst
+- openenv
+- reinforcement-learning
+- cybersecurity
+- incident-response
+- explainable-ai
+- curriculum-learning
+- eu-ai-act
+- multi-agent
+- grpo
+
+_AnomalyGuard_
+An RL Environment That Trains AI to Think Like a Cybersecurity Analyst
 
 [![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-blue)](https://github.com/openenv)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-green)](https://python.org)
@@ -27,74 +25,32 @@ tags:
 [![Hackathon](https://img.shields.io/badge/OpenEnv-Hackathon%202026-orange)](https://scaler.com)
 [![Space](https://img.shields.io/badge/HuggingFace-Live-brightgreen)](https://padmavathi-123-anomalyguard.hf.space)
 
----
+Why This Exists
 
-## Why This Exists
-
-AI is everywhere now. In hospitals. In banks.
-In the systems that run power grids and financial markets.
-And wherever AI goes, attackers follow.
-
-Security teams today receive thousands of alerts per day.
-They cannot investigate all of them fast enough.
-One missed alert, one wrong classification,
-one moment of hesitation can mean the difference
-between containing a breach in an hour and losing
-customer data for months.
-
-When I saw how fast cyber attacks were growing and
-when the Vercel breach happened, I realized the
-problem was not that security teams did not know
-what to do. The problem was that there were too many
-alerts, too little time, and too much noise to filter
+AI is everywhere now. In hospitals. In banks. In the systems that run power grids and financial markets. And wherever AI goes, attackers follow.
+Security teams today receive thousands of alerts per day. They cannot investigate all of them fast enough. One missed alert, one wrong classification, one moment of hesitation can mean the difference between containing a breach in an hour and losing customer data for months.
+When I saw how fast cyber attacks were growing and when the Vercel breach happened, I realized the problem was not that security teams did not know what to do. The problem was that there were too many alerts, too little time, and too much noise to filter
 through manually.
-
-I wanted to build an AI that does not just detect.
-That investigates. That explains its work.
-That a human analyst can actually supervise and trust.
-
+I wanted to build an AI that does not just detect.That investigates. That explains its work. That a human analyst can actually supervise and trust.
 That became AnomalyGuard.
 
----
+What It Does
 
-## What It Does
+AnomalyGuard is an OpenEnv reinforcement learning environment where an LLM learns to act as a
+Security Operations Center analyst. The agent receives real SIEM alerts and must work
+through a complete incident response lifecycle — investigating hosts, classifying alerts, isolating compromised systems, removing persistence mechanisms, and restoring clean hosts to production.
+Every action must be justified with specific evidence. The agent cannot simply isolate a host. It must explain which alert triggered the decision, what it found when it queried the host, why it chose this action over alternatives, and what the risk assessment was.
+This is enforced at the reward level. Unjustified actions receive lower scores. This is how EU AI Act compliance is built into the training signal itself.
 
-AnomalyGuard is an OpenEnv reinforcement learning
-environment where an LLM learns to act as a
-Security Operations Center analyst.
+Links
 
-The agent receives real SIEM alerts and must work
-through a complete incident response lifecycle —
-investigating hosts, classifying alerts, isolating
-compromised systems, removing persistence mechanisms,
-and restoring clean hosts to production.
+| Resource         | URL                                               |
+| ---------------- | ------------------------------------------------- |
+| Live Environment | https://padmavathi-123-anomalyguard.hf.space      |
+| API Docs         | https://padmavathi-123-anomalyguard.hf.space/docs |
+| GitHub           | https://github.com/Padmavathi-1234/Anomaly-Guard- |
 
-Every action must be justified with specific evidence.
-The agent cannot simply isolate a host. It must explain
-which alert triggered the decision, what it found when
-it queried the host, why it chose this action over
-alternatives, and what the risk assessment was.
-
-This is enforced at the reward level.
-Unjustified actions receive lower scores.
-This is how EU AI Act compliance is built into
-the training signal itself.
-
----
-
-## Links
-
-| Resource | URL |
-|----------|-----|
-| Live Environment | https://padmavathi-123-anomalyguard.hf.space |
-| API Docs | https://padmavathi-123-anomalyguard.hf.space/docs |
-| GitHub | https://github.com/Padmavathi-1234/Anomaly-Guard- |
-| Blog Post | YOUR_BLOG_URL |
-| Demo Video | YOUR_VIDEO_URL |
-
----
-
-## Try It Right Now
+Try It Right Now
 
 Start an investigation:
 
@@ -125,41 +81,18 @@ Bash
 
 curl "https://padmavathi-123-anomalyguard.hf.space/compliance/audit"
 Training Results
-The model was trained using GRPO (Group Relative
-Policy Optimization) with dynamic step selection
-based on curriculum complexity.
-What Makes This Different
-Feature	AnomalyGuard	Typical RL Env
-Action justification required	Mandatory	None
-EU AI Act compliance engine	Built-in	None
-Partial observability	Query-based	Full visibility
-MITRE ATT&CK integration	Real techniques	Abstract
-Malware spread simulation	Topology-based	Static
-Anti-hacking protection	Multi-layer	None
-Adaptive curriculum	10 levels	Fixed
-Multi-agent architecture	3 roles	Single agent
-The Design
-Partial Observability
-Host details are hidden until the agent calls
-query_host. An agent that isolates a host without
-investigating first gets penalized. This forces
-strategic investigation over blind action-taking,
-mirroring how real SOC analysts work.
-
+The model was trained using GRPO (Group Relative Policy Optimization) with dynamic step selection based on curriculum complexity. What Makes This Different Feature	AnomalyGuard	Typical RL Env Action justification required	Mandatory	None EU AI Act compliance engine	Built-in	None Partial observability	Query-based	Full visibility MITRE ATT&CK integration	Real techniques	Abstract Malware spread simulation	Topology-based	Static Anti-hacking protection	Multi-layer	None Adaptive curriculum	10 levels	Fixed Multi-agent architecture	3 roles	Single agent The Design Partial Observability Host details are hidden until the agent calls query_host. An agent that isolates a host without investigating first gets penalized. This forces strategic investigation over blind action-taking, mirroring how real SOC analysts work.
 Three Coordinated Agents
-Agent	Responsibility
+Agent	Responsibility :
 Triage Agent	Classifies alerts as true or false positives
 Containment Agent	Isolates hosts and blocks malicious IPs
 Forensics Agent	Removes persistence and restores systems
-Agents cannot act out of order. Triage before
-containment. Containment before eradication.
+Agents cannot act out of order. Triage before containment. Containment before eradication.
 Eradication before recovery.
 
 Adaptive Curriculum
-The environment watches agent performance and
-adjusts difficulty automatically. When success
-exceeds 75 percent it advances. Below 35 percent
-it regresses. Training steps scale with complexity —
+The environment watches agent performance and adjusts difficulty automatically. When success
+exceeds 75 percent it advances. Below 35 percent it regresses. Training steps scale with complexity —
 50 steps for beginners, 300 for expert scenarios.
 
 Real Attack Scenarios
@@ -249,9 +182,11 @@ Malware spread is probabilistic, not adaptive
 Maximum 25 hosts per scenario
 Discrete action space only
 About
-Built solo for the OpenEnv Hackathon 2026.
+Meta PyTorch OpenEnv HuggingFace X Scaler Hackathon 2026
+Solo Participant
 
 Author: VSSK Sri Padmavathi
 
 Themes: World Modeling, Multi-Agent Interactions,
 Self-Improvement
+```

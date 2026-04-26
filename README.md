@@ -1,4 +1,5 @@
 title: AnomalyGuard
+emoji: 🛡️
 colorFrom: red
 colorTo: blue
 sdk: docker
